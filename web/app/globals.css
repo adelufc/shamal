@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-paper: #f6f3ee;
+  --color-ink: #1c1915;
+  --color-olive: #3f4f3a;
+  --color-olive-soft: #e7ece4;
+  --color-line: #d9d1c5;
+  --color-card: #fffcf8;
+  --color-warn: #8a4b2f;
+  --font-sans: "Segoe UI", Tahoma, sans-serif;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+}

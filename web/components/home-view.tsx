@@ -1,0 +1,94 @@
+import { chrome, money, priceUnit } from "@/lib/chrome";
+import type { HomePayload, Locale } from "@/lib/types";
+
+export function HomeView({
+  locale,
+  data,
+  neighborhoodPath,
+}: {
+  locale: Locale;
+  data: HomePayload;
+  neighborhoodPath: (slug: string) => string;
+}) {
+  const copy = chrome[locale];
+  return (
+    <>
+      <section className="grid gap-2">
+        <p className="text-sm text-ink/70">{copy.cityLine}</p>
+        <h1 className="text-3xl font-semibold">{copy.brand}</h1>
+        <a href={locale === "en" ? "/en/search" : "/search"} className="text-sm underline">
+          {copy.search}
+        </a>
+        <dl className="mt-2 flex flex-wrap gap-3 text-sm">
+          <div className="rounded-lg border border-line bg-card px-3 py-2">
+            <dt>{copy.countsNeighborhoods}</dt>
+            <dd className="text-xl font-semibold">{data.counts.published_neighborhoods}</dd>
+          </div>
+          <div className="rounded-lg border border-line bg-card px-3 py-2">
+            <dt>{copy.countsListings}</dt>
+            <dd className="text-xl font-semibold">{data.counts.published_listings}</dd>
+          </div>
+        </dl>
+      </section>
+      {data.neighborhoods.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-line bg-card p-4">{copy.emptyNeighborhoods}</p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {data.neighborhoods.map((item) => (
+            <li key={item.id} className="rounded-lg border border-line bg-card p-4">
+              <a href={neighborhoodPath(item.slug)} className="text-lg font-semibold">
+                {item.name}
+              </a>
+              <p className="mt-1 text-sm text-ink/70">
+                {item.listing_count} {copy.listingCount}
+              </p>
+              <ServiceLine locale={locale} item={item} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <section className="grid gap-3">
+        <h2 className="text-xl font-semibold">{copy.listings}</h2>
+        {data.listings.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line bg-card p-4">{copy.emptyListings}</p>
+        ) : (
+          <ul className="grid gap-3">
+            {data.listings.map((item) => {
+              const text = item.texts?.[0];
+              return (
+                <li key={item.id} className="rounded-lg border border-line bg-card p-4">
+                  <h3 className="font-semibold">{text?.title}</h3>
+                  <p className="mt-1 text-sm text-ink/80">{text?.description}</p>
+                  <p className="mt-2 text-sm">
+                    {money(item.price_minor, locale)} {priceUnit(locale, item.price_unit, item.transaction_type)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
+function ServiceLine({
+  locale,
+  item,
+}: {
+  locale: Locale;
+  item: HomePayload["neighborhoods"][number];
+}) {
+  const copy = chrome[locale];
+  const enabled = [
+    item.service_sale ? copy.sale : null,
+    item.service_annual ? copy.annual : null,
+    item.service_monthly ? copy.monthly : null,
+    item.service_daily ? copy.daily : null,
+  ].filter(Boolean);
+  return (
+    <p className="mt-3 text-sm">
+      {copy.services}: {enabled.join(locale === "en" ? ", " : "، ")}
+    </p>
+  );
+}

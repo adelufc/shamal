@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.extract/
+.tools/
+.data/
+.env
+*.log
+web/tsconfig.tsbuildinfo
+service/tmp/
