@@ -15,6 +15,11 @@ export default function AdminHome() {
           </a>
         </li>
         <li className="rounded-lg border border-line bg-card p-4">
+          <a href="/admin/permissions" className="font-semibold">
+            الصلاحيات
+          </a>
+        </li>
+        <li className="rounded-lg border border-line bg-card p-4">
           <a href="/admin/catalog" className="font-semibold">
             العقارات والإعلانات
           </a>

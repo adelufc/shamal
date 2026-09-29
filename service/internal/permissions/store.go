@@ -77,6 +77,56 @@ func (s Store) CreateBreak(ctx context.Context, companyID, actor string, item Br
 	return err
 }
 
+func (s Store) NodeRules(ctx context.Context, companyID string) ([]Rule, error) {
+	return s.rulesWhere(ctx, `company_id = $1 AND grantee_type = 'node'`, companyID)
+}
+
+func (s Store) BreakViews(ctx context.Context, nodeIDs []string) ([]BreakView, error) {
+	if nodeIDs == nil {
+		nodeIDs = []string{}
+	}
+	rows, err := s.DB.Query(ctx, `
+		SELECT node_id::text, domain, action, reason
+		FROM permissions.inheritance_breaks
+		WHERE node_id = ANY($1::uuid[])
+		ORDER BY created_at
+	`, nodeIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]BreakView, 0)
+	for rows.Next() {
+		var item BreakView
+		if err := rows.Scan(&item.NodeID, &item.Domain, &item.Action, &item.Reason); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s Store) rulesWhere(ctx context.Context, where string, arg any) ([]Rule, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT id::text, domain, action, effect, layer, scope_kind, COALESCE(scope_node_id::text,''),
+		       starts_at, ends_at, source_label, grantee_id::text, grantee_type
+		FROM permissions.rules
+		WHERE `+where, arg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]Rule, 0)
+	for rows.Next() {
+		var rule Rule
+		if err := rows.Scan(&rule.ID, &rule.Domain, &rule.Action, &rule.Effect, &rule.Layer, &rule.Scope.Kind, &rule.Scope.NodeID, &rule.StartsAt, &rule.EndsAt, &rule.Source, &rule.GranteeID, &rule.AttachedTo); err != nil {
+			return nil, err
+		}
+		out = append(out, rule)
+	}
+	return out, rows.Err()
+}
+
 func AncestorIDs(nodes []Node, start string) []string {
 	parent := map[string]string{}
 	for _, node := range nodes {

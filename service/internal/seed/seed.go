@@ -203,6 +203,7 @@ func EnsureCommercial(ctx context.Context, pool *pgxpool.Pool) error {
 		{ReviewerID, "view", "disputes"}, {ReviewerID, "approve", "disputes"},
 		{ManagerID, "view", "disputes"}, {ManagerID, "approve", "disputes"},
 		{EditorID, "view", "reports"}, {ReviewerID, "view", "reports"}, {ManagerID, "view", "reports"},
+		{ManagerID, "create", "permissions"},
 	}
 	for _, item := range grants {
 		if _, err := pool.Exec(ctx, `

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { ApiFailure, SessionUser } from "@/lib/types";
+import { verificationDigits } from "@/lib/verification-code";
 
 export class ApiError extends Error {
   status: number;
@@ -76,7 +77,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
   async function stepUp() {
     setNotice("");
     try {
-      await api("/api/v1/auth/step-up", { method: "POST", body: JSON.stringify({ code }) });
+      const { digits, letters } = verificationDigits(code);
+      if (letters || digits.length !== 6) {
+        setNotice("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+        return;
+      }
+      await api("/api/v1/auth/step-up", { method: "POST", body: JSON.stringify({ code: digits }) });
       const user = await api<SessionUser>("/api/v1/me");
       setMe(user);
       setCode("");
@@ -123,6 +129,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <nav className="flex flex-wrap items-center gap-4 text-sm">
               <a href="/admin/neighborhoods">الأحياء</a>
               <a href="/admin/organization">الهيكل</a>
+              <a href="/admin/permissions">الصلاحيات</a>
               <a href="/admin/catalog">العقارات</a>
               <a href="/admin/requests">الطلبات</a>
               <a href="/admin/visits">الزيارات</a>
@@ -149,10 +156,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <span>{me.step_up ? "التحقق الإضافي ساري." : "النشر والاعتماد يحتاجان رمزاً إضافياً."}</span>
               <input
                 value={code}
-                onChange={(event) => setCode(event.target.value)}
+                onChange={(event) => {
+                  const next = verificationDigits(event.target.value);
+                  setCode(next.letters ? "" : next.digits);
+                }}
                 inputMode="numeric"
+                autoComplete="off"
                 className="w-32 rounded-md border border-line bg-card px-2 py-1"
-                aria-label="رمز التحقق"
+                aria-label="رمز من 6 أرقام"
               />
               <button className="rounded-md bg-olive px-3 py-1 text-paper">تأكيد</button>
               {notice ? <span>{notice}</span> : null}

@@ -36,7 +36,7 @@ func LoadConfig() Config {
 	return Config{
 		HTTPAddr:        getenv("SHAMAL_HTTP_ADDR", "127.0.0.1:4318"),
 		DatabaseURL:     getenv("SHAMAL_DATABASE_URL", "postgres://shamal:shamal_local_dev@127.0.0.1:55432/shamal?sslmode=disable"),
-		RedisURL:        getenv("SHAMAL_REDIS_URL", "redis://127.0.0.1:63799/0"),
+		RedisURL:        getenv("SHAMAL_REDIS_URL", "redis://127.0.0.1:16379/0"),
 		AllowApprox:     getenv("SHAMAL_ALLOW_APPROXIMATE_BOUNDARY", "true") == "true",
 		Storage:         getenv("SHAMAL_STORAGE", "local"),
 		StorageDir:      getenv("SHAMAL_STORAGE_DIR", ".data/objects"),

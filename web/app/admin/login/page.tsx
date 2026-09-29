@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { ApiError, api } from "@/components/admin-shell";
+import { verificationDigits } from "@/lib/verification-code";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,9 +42,14 @@ export default function LoginPage() {
     setError("");
     setPending(true);
     try {
+      const { digits, letters } = verificationDigits(code);
+      if (letters || digits.length !== 6) {
+        setError("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+        return;
+      }
       await api("/api/v1/auth/mfa", {
         method: "POST",
-        body: JSON.stringify({ challenge_id: challenge, code }),
+        body: JSON.stringify({ challenge_id: challenge, code: digits }),
       });
       router.replace("/admin/neighborhoods");
     } catch (caught) {
@@ -59,7 +65,7 @@ export default function LoginPage() {
         شمال العقاري
       </a>
       <h1 className="text-2xl font-semibold">دخول فريق العمل</h1>
-      <p className="text-sm text-ink/70">الحسابات المحلية وخطوات التشغيل مذكورة في دليل المشروع. لا تُعرض كلمة المرور هنا.</p>
+      <p className="text-sm text-ink/70">البريد ثم كلمة المرور، ثم رمز من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست هذا الرمز.</p>
       {challenge === "" ? (
         <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={submitPassword}>
           <Label>
@@ -75,8 +81,24 @@ export default function LoginPage() {
       ) : (
         <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={submitCode}>
           <Label>
-            رمز التحقق
-            <Input inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} required autoComplete="one-time-code" />
+            رمز من 6 أرقام
+            <Input
+              inputMode="numeric"
+              autoComplete="off"
+              pattern="[0-9]*"
+              value={code}
+              onChange={(event) => {
+                const next = verificationDigits(event.target.value);
+                if (next.letters) {
+                  setCode("");
+                  setError("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+                  return;
+                }
+                setError("");
+                setCode(next.digits);
+              }}
+              required
+            />
           </Label>
           <Button disabled={pending}>{pending ? "جارٍ التحقق…" : "دخول"}</Button>
         </form>

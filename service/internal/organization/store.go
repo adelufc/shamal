@@ -122,6 +122,28 @@ func (s Store) Memberships(ctx context.Context, userID string) ([]Membership, er
 	return out, rows.Err()
 }
 
+func (s Store) ListMemberships(ctx context.Context, companyID string) ([]Membership, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT id::text, user_id::text, node_id::text, company_id::text, is_primary, starts_at, ends_at
+		FROM organization.memberships
+		WHERE company_id = $1
+		ORDER BY starts_at
+	`, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]Membership, 0)
+	for rows.Next() {
+		var item Membership
+		if err := rows.Scan(&item.ID, &item.UserID, &item.NodeID, &item.CompanyID, &item.Primary, &item.StartsAt, &item.EndsAt); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
 func (s Store) AddMembership(ctx context.Context, item Membership) (Membership, error) {
 	item.ID = uuid.NewString()
 	if item.StartsAt.IsZero() {
