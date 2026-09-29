@@ -138,6 +138,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <a href="/admin/messages">الرسائل</a>
               <a href="/admin/disputes">النزاعات</a>
               <a href="/admin/reports">التقارير</a>
+              <a href="/notifications">الإشعارات</a>
               <button onClick={logout} className="underline">
                 خروج
               </button>

@@ -5,7 +5,7 @@ import { ApiError, Failure, api } from "@/components/admin-shell";
 import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import type { Locale } from "@/lib/types";
+import type { Locale, SessionUser } from "@/lib/types";
 
 type Place = { id: string; name: string };
 type Search = { id: string; name: string; neighborhood_id: string; transaction_type: string; muted: boolean; channel: string };
@@ -27,6 +27,7 @@ const copy = {
     lead: "الإشعار يبقى داخل التطبيق. لا بريد تسويقي، ولا مزود رسائل معتمد، فحالة التسليم تبقى غير مُرسلة.",
     login: "ادخل إلى الحساب لحفظ بحث أو مراجعة الإشعارات.",
     account: "الحساب",
+    staffNote: "حفظ البحث لحساب العميل. هذه الشاشة تعرض إشعارات حساب المكتب داخل التطبيق، ويمكن كتم القناة.",
     name: "اسم البحث",
     neighborhood: "الحي",
     transaction: "نوع المعاملة",
@@ -48,6 +49,7 @@ const copy = {
     lead: "A notice stays in the app. There is no marketing mail and no adopted message provider, so delivery stays not sent.",
     login: "Sign in to save a search or read notices.",
     account: "Account",
+    staffNote: "Saving a search belongs to a client account. This screen shows this desk account's in-app notices, and the channel can be muted.",
     name: "Search name",
     neighborhood: "Neighborhood",
     transaction: "Transaction",
@@ -78,15 +80,20 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [guest, setGuest] = useState(false);
+  const [clientAccount, setClientAccount] = useState(false);
 
-  async function reload() {
-    const [saved, inbox] = await Promise.all([
-      api<{ items: Search[] }>("/api/v1/account/searches", { headers: { "Accept-Language": locale } }),
-      api<{ items: Notice[]; channel_muted: boolean }>("/api/v1/account/notifications", { headers: { "Accept-Language": locale } }),
-    ]);
-    setSearches(saved.items);
+  async function reload(forClient: boolean) {
+    const inbox = await api<{ items: Notice[]; channel_muted: boolean }>("/api/v1/account/notifications", {
+      headers: { "Accept-Language": locale },
+    });
     setItems(inbox.items);
     setMuted(inbox.channel_muted);
+    if (!forClient) {
+      setSearches([]);
+      return;
+    }
+    const saved = await api<{ items: Search[] }>("/api/v1/account/searches", { headers: { "Accept-Language": locale } });
+    setSearches(saved.items);
   }
 
   useEffect(() => {
@@ -96,7 +103,12 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
         setNeighborhood(home.neighborhoods[0]?.id ?? "");
       })
       .catch(() => setPlaces([]));
-    reload()
+    api<SessionUser>("/api/v1/me")
+      .then(async (me) => {
+        const forClient = me.context === "client";
+        setClientAccount(forClient);
+        await reload(forClient);
+      })
       .catch((err: unknown) => {
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) setGuest(true);
         else setError(err);
@@ -114,7 +126,7 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
         body: JSON.stringify({ name, neighborhood_id: neighborhood, transaction_type: transaction, locale, channel: "in_app" }),
       });
       setName("");
-      await reload();
+      await reload(true);
     } catch (err) {
       setError(err);
     }
@@ -124,7 +136,7 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
     setError(null);
     try {
       await api(`/api/v1/account/searches/${id}/mute`, { method: "POST", headers: { "Accept-Language": locale } });
-      await reload();
+      await reload(true);
     } catch (err) {
       setError(err);
     }
@@ -138,7 +150,7 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
         headers: { "Accept-Language": locale },
         body: JSON.stringify({ channel: "in_app", muted: !muted }),
       });
-      await reload();
+      await reload(clientAccount);
     } catch (err) {
       setError(err);
     }
@@ -161,56 +173,64 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
         {loading ? <p className="text-sm">{locale === "en" ? "Loading…" : "جارٍ التحميل…"}</p> : null}
         {guest ? null : (
           <>
-            <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={save}>
-              <Label>
-                {text.name}
-                <Input value={name} onChange={(event) => setName(event.target.value)} required />
-              </Label>
-              <Label>
-                {text.neighborhood}
-                <select className="rounded-md border border-line bg-paper px-2 py-2" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} required>
-                  {places.map((place) => (
-                    <option key={place.id} value={place.id}>
-                      {place.name}
-                    </option>
-                  ))}
-                </select>
-              </Label>
-              <Label>
-                {text.transaction}
-                <select className="rounded-md border border-line bg-paper px-2 py-2" value={transaction} onChange={(event) => setTransaction(event.target.value)}>
-                  {Object.entries(text.transactions).map(([value, label]) => (
-                    <option key={value || "any"} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </Label>
-              <Button type="submit">{text.save}</Button>
-            </form>
+            {clientAccount ? (
+              <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={save}>
+                <Label>
+                  {text.name}
+                  <Input value={name} onChange={(event) => setName(event.target.value)} required />
+                </Label>
+                <Label>
+                  {text.neighborhood}
+                  <select className="rounded-md border border-line bg-paper px-2 py-2" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} required>
+                    {places.map((place) => (
+                      <option key={place.id} value={place.id}>
+                        {place.name}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+                <Label>
+                  {text.transaction}
+                  <select className="rounded-md border border-line bg-paper px-2 py-2" value={transaction} onChange={(event) => setTransaction(event.target.value)}>
+                    {Object.entries(text.transactions).map(([value, label]) => (
+                      <option key={value || "any"} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+                <Button type="submit">{text.save}</Button>
+              </form>
+            ) : (
+              <p className="text-sm text-ink/80">{text.staffNote}</p>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-semibold">{text.searches}</h2>
+              <h2 className="font-semibold">{clientAccount ? text.searches : text.inbox}</h2>
               <Button type="button" variant="ghost" onClick={() => void muteAll()}>
                 {muted ? text.unmute : text.mute}
               </Button>
             </div>
-            {searches.length === 0 ? <p className="text-sm">{text.emptySearches}</p> : null}
-            <ul className="grid gap-2">
-              {searches.map((item) => (
-                <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-card p-3 text-sm">
-                  <span>
-                    {item.name}
-                    {item.muted ? (locale === "en" ? " · muted" : " · مكتوم") : ""}
-                  </span>
-                  {item.muted ? null : (
-                    <button className="underline" onClick={() => void muteOne(item.id)}>
-                      {text.muteSearch}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <h2 className="font-semibold">{text.inbox}</h2>
+            {clientAccount ? (
+              <>
+                {searches.length === 0 ? <p className="text-sm">{text.emptySearches}</p> : null}
+                <ul className="grid gap-2">
+                  {searches.map((item) => (
+                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-card p-3 text-sm">
+                      <span>
+                        {item.name}
+                        {item.muted ? (locale === "en" ? " · muted" : " · مكتوم") : ""}
+                      </span>
+                      {item.muted ? null : (
+                        <button className="underline" onClick={() => void muteOne(item.id)}>
+                          {text.muteSearch}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <h2 className="font-semibold">{text.inbox}</h2>
+              </>
+            ) : null}
             {items.length === 0 ? <p className="text-sm">{text.empty}</p> : null}
             <ul className="grid gap-2">
               {items.map((item) => (

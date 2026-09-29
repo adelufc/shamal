@@ -47,6 +47,16 @@ func TestReportsAndNotifications(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := &apiClient{t: t, base: srv.URL, http: srv.Client()}
 	editor := c.login("editor@shamal.local", seed.EditorTOTP)
+	status, staffInbox := c.getAuth("/api/v1/account/notifications", editor)
+	if status != 200 || staffInbox["items"] == nil || staffInbox["channel_muted"] != false {
+		t.Fatalf("staff inbox: %d %v", status, staffInbox)
+	}
+	status, staffSearch := c.post("/api/v1/account/searches", map[string]any{
+		"name": "بحث موظف", "neighborhood_id": narjisID, "transaction_type": "daily",
+	}, editor)
+	if status != 403 || staffSearch["code"] != "forbidden" {
+		t.Fatalf("staff search: %d %v", status, staffSearch)
+	}
 	reviewer := c.login("reviewer@shamal.local", seed.ReviewerTOTP)
 	manager := c.login("manager@shamal.local", seed.ManagerTOTP)
 	tag := fmt.Sprintf("%d", time.Now().UnixNano()%1000000000)

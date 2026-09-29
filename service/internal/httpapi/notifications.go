@@ -3,14 +3,15 @@ package httpapi
 import (
 	"net/http"
 
+	"shamal/service/internal/identity"
 	"shamal/service/internal/platform"
 	"shamal/service/internal/visits"
 )
 
 func (a *API) saveSearch(w http.ResponseWriter, r *http.Request) {
-	sess, user, err := a.sessionUser(r)
-	if err != nil || sess.Kind != "client" {
-		writeErr(w, r, platform.E("forbidden", 403))
+	user, err := a.clientUser(r)
+	if err != nil {
+		writeErr(w, r, err)
 		return
 	}
 	var body struct {
@@ -33,9 +34,9 @@ func (a *API) saveSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) listSearches(w http.ResponseWriter, r *http.Request) {
-	sess, user, err := a.sessionUser(r)
-	if err != nil || sess.Kind != "client" {
-		writeErr(w, r, platform.E("forbidden", 403))
+	user, err := a.clientUser(r)
+	if err != nil {
+		writeErr(w, r, err)
 		return
 	}
 	items, err := a.Notify.ListSearches(r.Context(), user.ID)
@@ -47,9 +48,9 @@ func (a *API) listSearches(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) muteSearch(w http.ResponseWriter, r *http.Request) {
-	sess, user, err := a.sessionUser(r)
-	if err != nil || sess.Kind != "client" {
-		writeErr(w, r, platform.E("forbidden", 403))
+	user, err := a.clientUser(r)
+	if err != nil {
+		writeErr(w, r, err)
 		return
 	}
 	if err := a.Notify.MuteSearch(r.Context(), user.ID, r.PathValue("id")); err != nil {
@@ -60,9 +61,9 @@ func (a *API) muteSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) muteChannel(w http.ResponseWriter, r *http.Request) {
-	sess, user, err := a.sessionUser(r)
-	if err != nil || sess.Kind != "client" {
-		writeErr(w, r, platform.E("forbidden", 403))
+	_, user, err := a.sessionUser(r)
+	if err != nil {
+		writeErr(w, r, err)
 		return
 	}
 	var body struct {
@@ -81,9 +82,9 @@ func (a *API) muteChannel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) notifications(w http.ResponseWriter, r *http.Request) {
-	sess, user, err := a.sessionUser(r)
-	if err != nil || sess.Kind != "client" {
-		writeErr(w, r, platform.E("forbidden", 403))
+	_, user, err := a.sessionUser(r)
+	if err != nil {
+		writeErr(w, r, err)
 		return
 	}
 	items, err := a.Notify.Inbox(r.Context(), user.ID)
@@ -97,6 +98,17 @@ func (a *API) notifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "channel_muted": muted})
+}
+
+func (a *API) clientUser(r *http.Request) (identity.User, error) {
+	sess, user, err := a.sessionUser(r)
+	if err != nil {
+		return identity.User{}, err
+	}
+	if sess.Kind != "client" {
+		return identity.User{}, platform.E("forbidden", 403)
+	}
+	return user, nil
 }
 
 func (a *API) writeVisit(w http.ResponseWriter, r *http.Request, status int, item visits.Visit, err error) {
