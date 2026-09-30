@@ -25,6 +25,16 @@ export default function AdminHome() {
           </a>
         </li>
         <li className="rounded-lg border border-line bg-card p-4">
+          <a href="/admin/content" className="font-semibold">
+            المحتوى
+          </a>
+        </li>
+        <li className="rounded-lg border border-line bg-card p-4">
+          <a href="/admin/listings" className="font-semibold">
+            تعديل إعلان منشور
+          </a>
+        </li>
+        <li className="rounded-lg border border-line bg-card p-4">
           <a href="/admin/requests" className="font-semibold">
             طلبات العملاء
           </a>

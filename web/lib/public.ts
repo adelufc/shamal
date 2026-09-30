@@ -1,4 +1,4 @@
-import type { HomePayload, Locale } from "./types";
+import type { HomePayload, Locale, PublicContent } from "./types";
 
 function origin() {
   return process.env.SHAMAL_API_ORIGIN ?? "http://127.0.0.1:4318";
@@ -38,4 +38,16 @@ export async function loadNeighborhood(locale: Locale, slug: string) {
     };
     listings: HomePayload["listings"];
   }>;
+}
+
+export async function loadContent(locale: Locale, slug: string): Promise<PublicContent | null> {
+  const response = await fetch(
+    `${origin()}/api/v1/public/content?locale=${locale}&slug=${encodeURIComponent(slug)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error("content");
+  }
+  const body = (await response.json()) as { items: PublicContent[] };
+  return body.items[0] ?? null;
 }

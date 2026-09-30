@@ -41,6 +41,25 @@ func TestClustersStartAfterTheMarkerCap(t *testing.T) {
 	}
 }
 
+func TestBedroomsAndAmenities(t *testing.T) {
+	if _, issues := ParseBedrooms("0"); !has(issues, "invalid_rooms") {
+		t.Fatal(issues)
+	}
+	rooms, issues := ParseBedrooms("3")
+	if len(issues) != 0 || rooms == nil || *rooms != 3 {
+		t.Fatalf("%v %v", rooms, issues)
+	}
+	_, _, _, _, _, _, issues = AmenityFlags("pool")
+	if !has(issues, "invalid_amenity") {
+		t.Fatal(issues)
+	}
+	furnished, cooling, _, _, _, _, amenityIssues := AmenityFlags("furnished,air_conditioning")
+	issues = amenityIssues
+	if len(issues) != 0 || !furnished || !cooling {
+		t.Fatalf("%v %v %v", furnished, cooling, issues)
+	}
+}
+
 func has(issues []string, code string) bool {
 	for _, item := range issues {
 		if item == code {

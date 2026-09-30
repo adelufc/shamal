@@ -131,6 +131,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <a href="/admin/organization">الهيكل</a>
               <a href="/admin/permissions">الصلاحيات</a>
               <a href="/admin/catalog">العقارات</a>
+              <a href="/admin/content">المحتوى</a>
+              <a href="/admin/listings">تعديل الإعلان</a>
               <a href="/admin/requests">الطلبات</a>
               <a href="/admin/visits">الزيارات</a>
               <a href="/admin/deals">الصفقات</a>

@@ -16,6 +16,14 @@ type SearchQuery struct {
 	NameIDs        []string
 	Page           int
 	Size           int
+	RoomsMin       *int
+	Furnished      bool
+	Cooling        bool
+	Internet       bool
+	Parking        bool
+	Bedding        bool
+	SelfEntry      bool
+	Verified       bool
 }
 
 type SearchHit struct {
@@ -106,4 +114,49 @@ func OrderBy(sort string) string {
 
 func NormalizeSearchText(value string) string {
 	return strings.TrimSpace(value)
+}
+
+func AmenityFlags(raw string) (furnished, cooling, internet, parking, bedding, entry bool, issues []string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return
+	}
+	for _, part := range strings.Split(raw, ",") {
+		switch strings.TrimSpace(part) {
+		case "":
+		case "furnished":
+			furnished = true
+		case "air_conditioning":
+			cooling = true
+		case "internet":
+			internet = true
+		case "parking":
+			parking = true
+		case "bedding":
+			bedding = true
+		case "self_entry":
+			entry = true
+		default:
+			issues = append(issues, "invalid_amenity")
+		}
+	}
+	return
+}
+
+func ParseBedrooms(raw string) (*int, []string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	value := 0
+	for _, r := range raw {
+		if r < '0' || r > '9' {
+			return nil, []string{"invalid_rooms"}
+		}
+		value = value*10 + int(r-'0')
+	}
+	if value < 1 || value > 30 {
+		return nil, []string{"invalid_rooms"}
+	}
+	return &value, nil
 }

@@ -35,6 +35,14 @@ func (a *API) publicSearch(w http.ResponseWriter, r *http.Request) {
 	if !minOK || !maxOK {
 		issues = append(issues, "invalid_price")
 	}
+	rooms, roomIssues := catalog.ParseBedrooms(query.Get("bedrooms"))
+	issues = append(issues, roomIssues...)
+	furnished, cooling, internet, parking, bedding, entry, amenityIssues := catalog.AmenityFlags(query.Get("amenities"))
+	issues = append(issues, amenityIssues...)
+	verified := query.Get("verified") == "1"
+	if query.Get("verified") != "" && query.Get("verified") != "1" && query.Get("verified") != "0" {
+		issues = append(issues, "validation")
+	}
 	if len(issues) > 0 {
 		fields := map[string]string{}
 		for _, issue := range issues {
@@ -78,6 +86,7 @@ func (a *API) publicSearch(w http.ResponseWriter, r *http.Request) {
 		Locale: locale, NeighborhoodID: neighborhoodID, Transaction: transaction,
 		PriceMin: priceMin, PriceMax: priceMax, Sort: sort, Text: text,
 		AllowedIDs: allowed, NameIDs: nameIDs, Page: page, Size: size,
+		RoomsMin: rooms, Furnished: furnished, Cooling: cooling, Internet: internet, Parking: parking, Bedding: bedding, SelfEntry: entry, Verified: verified,
 	})
 	if err != nil {
 		writeErr(w, r, err)
@@ -125,6 +134,7 @@ func (a *API) publicSearch(w http.ResponseWriter, r *http.Request) {
 			"q": text, "neighborhood_id": neighborhoodID, "transaction": transaction,
 			"price_min_minor": priceMin, "price_max_minor": priceMax, "sort": sortOrNewest(sort),
 			"in_area": inArea, "west": west, "south": south, "east": east, "north": north,
+			"bedrooms": rooms, "amenities": strings.TrimSpace(query.Get("amenities")), "verified": verified,
 		},
 		"listings": result.Listings, "markers": markers, "clusters": result.Clusters,
 		"marker_mode": mode, "marker_cap": catalog.MarkerCap,

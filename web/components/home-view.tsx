@@ -1,5 +1,5 @@
-import { chrome, money, priceUnit } from "@/lib/chrome";
-import type { HomePayload, Locale } from "@/lib/types";
+import { chrome, contentPath, money, priceUnit } from "@/lib/chrome";
+import type { HomePayload, Locale, PublicContent } from "@/lib/types";
 
 export function HomeView({
   locale,
@@ -47,6 +47,7 @@ export function HomeView({
           ))}
         </ul>
       )}
+      <ContentBlocks locale={locale} items={data.content ?? []} />
       <section className="grid gap-3">
         <h2 className="text-xl font-semibold">{copy.listings}</h2>
         {data.listings.length === 0 ? (
@@ -69,6 +70,36 @@ export function HomeView({
         )}
       </section>
     </>
+  );
+}
+
+function ContentBlocks({ locale, items }: { locale: Locale; items: PublicContent[] }) {
+  if (items.length === 0) return null;
+  const heading = locale === "en" ? "Published pages" : "صفحات منشورة";
+  const place = locale === "en" ? "Neighborhood record" : "سجل الحي";
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-xl font-semibold">{heading}</h2>
+      <ul className="grid gap-3">
+        {items.map((item) => {
+          const pageHref = contentPath(locale, item.slug);
+          const linked = Boolean(item.neighborhood_id);
+          return (
+            <li key={item.id} className="rounded-lg border border-line bg-card p-4">
+              <a href={pageHref} className="font-semibold">
+                {item.title}
+              </a>
+              <p className="mt-1 text-sm text-ink/80">{item.body}</p>
+              {linked ? (
+                <a className="mt-2 inline-block text-sm underline" href={`${locale === "en" ? "/en/search" : "/search"}?neighborhood_id=${item.neighborhood_id}`}>
+                  {place}
+                </a>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

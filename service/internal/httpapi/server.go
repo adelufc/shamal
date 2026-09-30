@@ -20,6 +20,7 @@ import (
 	"shamal/service/internal/audit"
 	"shamal/service/internal/catalog"
 	"shamal/service/internal/clients"
+	"shamal/service/internal/content"
 	"shamal/service/internal/deals"
 	"shamal/service/internal/disputes"
 	"shamal/service/internal/files"
@@ -45,6 +46,7 @@ type API struct {
 	Perm         permissions.Store
 	Geo          geography.Service
 	Cat          catalog.Service
+	Content      content.Service
 	Clients      clients.Service
 	Visits       visits.Service
 	Deals        deals.Service
@@ -80,6 +82,7 @@ func New(pool *pgxpool.Pool, rdb *redis.Client, cfg platform.Config) *API {
 		Perm:         permissions.Store{DB: pool},
 		Geo:          geography.Service{Pool: pool, AllowApprox: cfg.AllowApprox},
 		Cat:          catalog.Service{Pool: pool},
+		Content:      content.Service{Pool: pool},
 		Clients:      clients.Service{DB: pool},
 		Visits:       visits.Service{Pool: pool},
 		Deals:        deals.Service{Pool: pool},
@@ -125,7 +128,9 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/catalog/properties", a.createProperty)
 	mux.HandleFunc("POST /api/v1/catalog/units", a.createUnit)
 	mux.HandleFunc("POST /api/v1/catalog/listings", a.createListing)
+	mux.HandleFunc("GET /api/v1/catalog/listings", a.listListings)
 	mux.HandleFunc("GET /api/v1/catalog/listings/{id}", a.listing)
+	mux.HandleFunc("POST /api/v1/catalog/listings/{id}/pending-change", a.pendingListingChange)
 	mux.HandleFunc("POST /api/v1/catalog/listings/{id}/submit", a.listingMove("in_review", permissions.ActionUpdate))
 	mux.HandleFunc("POST /api/v1/catalog/listings/{id}/approve", a.listingMove("approved", permissions.ActionApprove))
 	mux.HandleFunc("POST /api/v1/catalog/listings/{id}/publish", a.listingMove("published", permissions.ActionPublish))
@@ -134,6 +139,13 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/permissions/grants", a.createGrant)
 	mux.HandleFunc("POST /api/v1/permissions/breaks", a.createBreak)
 	mux.HandleFunc("GET /api/v1/public/home", a.home)
+	mux.HandleFunc("GET /api/v1/public/content", a.publicContent)
+	mux.HandleFunc("GET /api/v1/content/pages", a.contentPages)
+	mux.HandleFunc("POST /api/v1/content/pages", a.createContentPage)
+	mux.HandleFunc("GET /api/v1/content/pages/{id}", a.contentPage)
+	mux.HandleFunc("PUT /api/v1/content/pages/{id}", a.updateContentPage)
+	mux.HandleFunc("POST /api/v1/content/pages/{id}/submit", a.submitContentPage)
+	mux.HandleFunc("POST /api/v1/content/pages/{id}/publish", a.publishContentPage)
 	mux.HandleFunc("GET /api/v1/public/search", a.publicSearch)
 	mux.HandleFunc("GET /api/v1/public/stays/quote", a.stayQuote)
 	mux.HandleFunc("GET /api/v1/account/stays", a.accountStay)
@@ -776,6 +788,8 @@ func text(code, locale string) string {
 		"compensation_needs_booking":   "قرار التعويض يحتاج حجزاً مرتبطاً، ولا يحرّك مالاً بنفسه.",
 		"export_unapproved":            "التصدير غير معتمد. صلاحية العرض لا تشمل ملفاً ولا تصدير Access.",
 		"search_limit":                 "حد البحوث المحفوظة عشرون بحثاً للحساب.",
+		"invalid_amenity":              "المرفق غير معروف. المرافق المعتمدة: مفروش، تكييف، إنترنت، موقف، مفارش، دخول ذاتي.",
+		"invalid_rooms":                "عدد غرف النوم يجب أن يكون بين 1 و 30.",
 		"marketing_unapproved":         "لا يُرسل بريد تسويقي. القناة المعتمدة هنا هي الإشعار داخل التطبيق فقط.",
 	}
 	en := map[string]string{
@@ -872,6 +886,8 @@ func text(code, locale string) string {
 		"compensation_needs_booking":   "A compensation decision needs a linked booking and does not move money by itself.",
 		"export_unapproved":            "Export is not adopted. View permission does not include a file or an Access export.",
 		"search_limit":                 "An account can keep twenty saved searches.",
+		"invalid_amenity":              "That amenity is unknown. The known ones are furnished, air conditioning, internet, parking, bedding, and self entry.",
+		"invalid_rooms":                "The bedroom count must be from 1 to 30.",
 		"marketing_unapproved":         "Marketing mail is not sent. The channel here is an in-app notice only.",
 	}
 	table := ar

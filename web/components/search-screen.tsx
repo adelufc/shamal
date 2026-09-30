@@ -55,6 +55,9 @@ type SearchPayload = {
     south: number | null;
     east: number | null;
     north: number | null;
+    bedrooms: number | null;
+    amenities: string;
+    verified: boolean;
   };
   listings: Hit[];
   markers: Marker[];
@@ -81,6 +84,18 @@ const copy = {
     daily: "إيجار يومي",
     priceMin: "السعر من، بالريال",
     priceMax: "السعر إلى، بالريال",
+    bedrooms: "غرف النوم، حداً أدنى",
+    amenities: "المرافق",
+    verified: "المالك موثّق",
+    furnished: "مفروش",
+    air_conditioning: "تكييف",
+    internet: "إنترنت",
+    parking: "موقف",
+    bedding: "مفارش",
+    self_entry: "دخول ذاتي",
+    widenRooms: "إزالة غرف النوم",
+    widenAmenities: "إزالة المرافق",
+    widenVerified: "إزالة التوثيق",
     sort: "الترتيب",
     newest: "الأحدث نشراً",
     priceAsc: "السعر من الأقل",
@@ -120,6 +135,18 @@ const copy = {
     daily: "Daily rent",
     priceMin: "Price from, SAR",
     priceMax: "Price to, SAR",
+    bedrooms: "Bedrooms, at least",
+    amenities: "Amenities",
+    verified: "Verified owner",
+    furnished: "Furnished",
+    air_conditioning: "Air conditioning",
+    internet: "Internet",
+    parking: "Parking",
+    bedding: "Bedding",
+    self_entry: "Self entry",
+    widenRooms: "Remove bedrooms",
+    widenAmenities: "Remove amenities",
+    widenVerified: "Remove verification",
     sort: "Order",
     newest: "Newest published",
     priceAsc: "Price, low to high",
@@ -149,6 +176,8 @@ const copy = {
 
 type Box = { west: number; south: number; east: number; north: number };
 
+const amenityKeys = ["furnished", "air_conditioning", "internet", "parking", "bedding", "self_entry"] as const;
+
 export function SearchScreen({ locale }: { locale: Locale }) {
   const text = copy[locale];
   const params = useSearchParams();
@@ -162,6 +191,9 @@ export function SearchScreen({ locale }: { locale: Locale }) {
   const [priceMin, setPriceMin] = useState(riyalsFromMinor(params.get("price_min_minor")));
   const [priceMax, setPriceMax] = useState(riyalsFromMinor(params.get("price_max_minor")));
   const [sort, setSort] = useState(params.get("sort") ?? "newest");
+  const [bedrooms, setBedrooms] = useState(params.get("bedrooms") ?? "");
+  const [picked, setPicked] = useState(params.get("amenities") ?? "");
+  const [verified, setVerified] = useState(params.get("verified") === "1");
 
   const base = locale === "en" ? "/en/search" : "/search";
   const requestHref = locale === "en" ? "/en/request" : "/request";
@@ -174,6 +206,9 @@ export function SearchScreen({ locale }: { locale: Locale }) {
     setPriceMin(riyalsFromMinor(params.get("price_min_minor")));
     setPriceMax(riyalsFromMinor(params.get("price_max_minor")));
     setSort(params.get("sort") ?? "newest");
+    setBedrooms(params.get("bedrooms") ?? "");
+    setPicked(params.get("amenities") ?? "");
+    setVerified(params.get("verified") === "1");
     const search = new URLSearchParams(params.toString());
     search.set("locale", locale);
     setState("loading");
@@ -210,6 +245,9 @@ export function SearchScreen({ locale }: { locale: Locale }) {
     if (min) next.set("price_min_minor", min);
     if (max) next.set("price_max_minor", max);
     if (sort && sort !== "newest") next.set("sort", sort);
+    if (bedrooms.trim()) next.set("bedrooms", bedrooms.trim());
+    if (picked.trim()) next.set("amenities", picked.trim());
+    if (verified) next.set("verified", "1");
     if (params.get("in_area") === "1") {
       next.set("in_area", "1");
       for (const key of ["west", "south", "east", "north"]) {
@@ -278,6 +316,38 @@ export function SearchScreen({ locale }: { locale: Locale }) {
             {text.priceMax}
             <Input value={priceMax} onChange={(event) => setPriceMax(event.target.value)} inputMode="decimal" />
           </Label>
+          <Label>
+            {text.bedrooms}
+            <Input value={bedrooms} onChange={(event) => setBedrooms(event.target.value)} inputMode="numeric" />
+          </Label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={verified} onChange={(event) => setVerified(event.target.checked)} />
+            {text.verified}
+          </label>
+          <fieldset className="grid gap-2 md:col-span-2">
+            <legend className="text-sm">{text.amenities}</legend>
+            <div className="flex flex-wrap gap-3 text-sm">
+              {amenityKeys.map((key) => {
+                const selected = picked.split(",").map((item) => item.trim()).filter(Boolean);
+                const on = selected.includes(key);
+                return (
+                  <label key={key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(event) => {
+                        const next = new Set(selected);
+                        if (event.target.checked) next.add(key);
+                        else next.delete(key);
+                        setPicked(amenityKeys.filter((item) => next.has(item)).join(","));
+                      }}
+                    />
+                    {text[key]}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
           <div className="md:col-span-2">
             <Button type="submit">{text.apply}</Button>
           </div>
@@ -309,6 +379,21 @@ export function SearchScreen({ locale }: { locale: Locale }) {
                   {applied?.q ? (
                     <button className="underline" onClick={() => without(["q"])}>
                       {text.widenText}
+                    </button>
+                  ) : null}
+                  {applied?.bedrooms ? (
+                    <button className="underline" onClick={() => without(["bedrooms"])}>
+                      {text.widenRooms}
+                    </button>
+                  ) : null}
+                  {applied?.amenities ? (
+                    <button className="underline" onClick={() => without(["amenities"])}>
+                      {text.widenAmenities}
+                    </button>
+                  ) : null}
+                  {applied?.verified ? (
+                    <button className="underline" onClick={() => without(["verified"])}>
+                      {text.widenVerified}
                     </button>
                   ) : null}
                   {applied?.in_area ? (
@@ -370,6 +455,9 @@ function FilterSummary({ locale, query }: { locale: Locale; query: SearchPayload
   const parts = [query.q, query.transaction, query.neighborhood_id].filter(Boolean);
   if (query.price_min_minor) parts.push(money(query.price_min_minor, locale));
   if (query.price_max_minor) parts.push(money(query.price_max_minor, locale));
+  if (query.bedrooms) parts.push(String(query.bedrooms));
+  if (query.amenities) parts.push(query.amenities);
+  if (query.verified) parts.push(locale === "en" ? "Verified" : "موثّق");
   if (query.in_area) parts.push(locale === "en" ? "Map area" : "نطاق الخريطة");
   return <p>{parts.join(" · ") || (locale === "en" ? "No extra filters." : "بلا فلاتر إضافية.")}</p>;
 }

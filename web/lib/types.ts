@@ -24,12 +24,23 @@ export type PublicListing = {
   precise_lat?: number | null;
 };
 
+export type PublicContent = {
+  id: string;
+  kind: string;
+  slug: string;
+  neighborhood_id: string;
+  locale: string;
+  title: string;
+  body: string;
+};
+
 export type HomePayload = {
   locale: Locale;
   city: { name: string; currency: string };
   neighborhoods: NeighborhoodCard[];
   listings: PublicListing[];
   counts: { published_neighborhoods: number; published_listings: number };
+  content?: PublicContent[];
 };
 
 export type ApiFailure = {

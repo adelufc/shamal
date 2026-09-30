@@ -400,6 +400,48 @@ func (s Service) StaySource(ctx context.Context, id string) (StaySource, error) 
 	return item, err
 }
 
+type ListingCard struct {
+	ID             string          `json:"id"`
+	Status         string          `json:"status"`
+	Version        int             `json:"version"`
+	Transaction    string          `json:"transaction_type"`
+	PriceMinor     int64           `json:"price_minor"`
+	NeighborhoodID string          `json:"neighborhood_id"`
+	LicenseRef     string          `json:"license_ref"`
+	OwnerUserID    string          `json:"owner_user_id"`
+	TitleAR        string          `json:"title_ar"`
+	TitleEN        string          `json:"title_en"`
+	Pending        json.RawMessage `json:"pending_changes"`
+}
+
+func (s Service) ListCards(ctx context.Context, companyID, status string) ([]ListingCard, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT l.id::text, l.status, l.version, l.transaction_type, COALESCE(l.price_minor, 0), l.neighborhood_id::text,
+		       l.license_ref, COALESCE(p.owner_user_id::text, ''),
+		       COALESCE((SELECT title FROM catalog.listing_translations WHERE listing_id = l.id AND locale = 'ar'), ''),
+		       COALESCE((SELECT title FROM catalog.listing_translations WHERE listing_id = l.id AND locale = 'en'), ''),
+		       COALESCE(l.pending_changes, 'null'::jsonb)
+		FROM catalog.listings l
+		JOIN catalog.properties p ON p.id = l.property_id
+		WHERE l.company_id = $1 AND ($2 = '' OR l.status = $2)
+		ORDER BY l.updated_at DESC
+		LIMIT 100
+	`, companyID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ListingCard, 0)
+	for rows.Next() {
+		var item ListingCard
+		if err := rows.Scan(&item.ID, &item.Status, &item.Version, &item.Transaction, &item.PriceMinor, &item.NeighborhoodID, &item.LicenseRef, &item.OwnerUserID, &item.TitleAR, &item.TitleEN, &item.Pending); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
 func nullable(id string) any {
 	if id == "" {
 		return nil

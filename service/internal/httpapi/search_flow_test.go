@@ -133,6 +133,32 @@ func TestPublicSearchAndMap(t *testing.T) {
 	if echo["transaction"] != "sale" || echo["q"] != "Search "+tag+" parcel" {
 		t.Fatalf("empty result hid the filters: %v", echo)
 	}
+	if _, err := pool.Exec(ctx, `UPDATE catalog.units SET rooms = 2, furnished = true WHERE id = (SELECT unit_id FROM catalog.listings WHERE id = $1)`, cheap); err != nil {
+		t.Fatal(err)
+	}
+	status, unknown := c.get("/api/v1/public/search?locale=en&amenities=pool")
+	if status != 422 || !hasField(unknown, "invalid_amenity") {
+		t.Fatalf("amenity: %d %v", status, unknown)
+	}
+	status, beds := c.get("/api/v1/public/search?locale=en&transaction=sale&bedrooms=3&q=Search%20" + tag + "%20parcel")
+	if status != 200 || num(beds, "total") != 0 {
+		t.Fatalf("bedrooms: %d %v", status, beds)
+	}
+	status, matched := c.get("/api/v1/public/search?locale=en&transaction=sale&bedrooms=2&amenities=furnished&q=Search%20" + tag + "%20parcel")
+	if status != 200 || !idsContain(asList(t, matched["listings"]), cheap) {
+		t.Fatalf("bedroom match: %d %v", status, matched)
+	}
+	status, verified := c.get("/api/v1/public/search?locale=en&transaction=sale&verified=1&q=Search%20" + tag + "%20parcel")
+	if status != 200 || !idsContain(asList(t, verified["listings"]), cheap) {
+		t.Fatalf("verified owner: %d %v", status, verified)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE identity.contact_methods SET verified_at = NULL WHERE user_id = $1`, seed.EditorID); err != nil {
+		t.Fatal(err)
+	}
+	status, unverified := c.get("/api/v1/public/search?locale=en&transaction=sale&verified=1&q=Search%20" + tag + "%20parcel")
+	if status != 200 || num(unverified, "total") != 0 {
+		t.Fatalf("unverified owner stayed visible: %d %v", status, unverified)
+	}
 }
 
 func publishTaggedListing(t *testing.T, c *apiClient, editor, reviewer, tag, transaction string, price int64, area, lon, lat float64, titleAR, titleEN string) string {

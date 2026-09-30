@@ -90,6 +90,11 @@ export function neighborhoodPath(locale: Locale, slug: string): string {
   return locale === "en" ? `/en/neighborhoods/${encoded}` : `/neighborhoods/${encoded}`;
 }
 
+export function contentPath(locale: Locale, slug: string): string {
+  const encoded = encodeURIComponent(slug);
+  return locale === "en" ? `/en/content/${encoded}` : `/content/${encoded}`;
+}
+
 export function money(minor: number, locale: Locale): string {
   return new Intl.NumberFormat(locale === "en" ? "en-SA" : "ar-SA", {
     style: "currency",

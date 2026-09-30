@@ -310,6 +310,70 @@ func (a *API) createListing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, item)
 }
 
+func (a *API) listListings(w http.ResponseWriter, r *http.Request) {
+	user, err := a.authorize(r, "catalog", permissions.ActionView, nil)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	items, err := a.Cat.ListCards(r.Context(), user.CompanyID, r.URL.Query().Get("status"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": items})
+}
+
+func (a *API) pendingListingChange(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Version        int    `json:"version"`
+		PriceMinor     int64  `json:"price_minor"`
+		NeighborhoodID string `json:"neighborhood_id"`
+		LicenseRef     string `json:"license_ref"`
+		OwnerUserID    string `json:"owner_user_id"`
+	}
+	if err := decode(r, &body); err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	if body.PriceMinor <= 0 || body.LicenseRef == "" {
+		writeErr(w, r, platform.E("validation", 422))
+		return
+	}
+	if _, err := uuid.Parse(body.NeighborhoodID); err != nil {
+		writeErr(w, r, platform.E("validation", 422))
+		return
+	}
+	if _, err := uuid.Parse(body.OwnerUserID); err != nil {
+		writeErr(w, r, platform.E("validation", 422))
+		return
+	}
+	item, err := a.Cat.GetListing(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	if item.Status != "published" {
+		writeErr(w, r, platform.E("invalid_transition", 409))
+		return
+	}
+	user, err := a.authorize(r, "catalog", permissions.ActionUpdate, &permissions.Resource{CompanyID: item.CompanyID, CreatedBy: item.CreatedBy})
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	if body.Version == 0 {
+		body.Version = item.Version
+	}
+	item.Version = body.Version
+	updated, err := a.Cat.StageSensitiveChange(r.Context(), user.ID, requestID(r), item, body.PriceMinor, body.NeighborhoodID, body.LicenseRef, body.OwnerUserID)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, 200, updated)
+}
+
 func (a *API) listing(w http.ResponseWriter, r *http.Request) {
 	if _, err := a.authorize(r, "catalog", permissions.ActionView, &permissions.Resource{CompanyID: seed.CompanyID, CreatedBy: "system"}); err != nil {
 		writeErr(w, r, err)
@@ -445,10 +509,16 @@ func (a *API) home(w http.ResponseWriter, r *http.Request) {
 	if locale == "en" {
 		cityName = "Riyadh"
 	}
+	blocks, err := a.Content.Published(r.Context(), locale, "", "")
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
 	writeJSON(w, 200, map[string]any{
 		"locale": locale, "city": map[string]string{"name": cityName, "currency": "SAR"},
 		"neighborhoods": cards, "listings": listings,
-		"counts": map[string]int{"published_neighborhoods": len(cards), "published_listings": total},
+		"counts":  map[string]int{"published_neighborhoods": len(cards), "published_listings": total},
+		"content": blocks,
 	})
 }
 
