@@ -221,6 +221,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/deals/{id}/approve-close", a.approveClose)
 	mux.HandleFunc("POST /api/v1/files", a.upload)
 	mux.HandleFunc("GET /api/v1/files/{area}/{key}", a.download)
+	mux.HandleFunc("GET /api/v1/owner/performance", a.ownerPerformance)
 	mux.HandleFunc("GET /api/v1/reports/{code}", a.report)
 	mux.HandleFunc("POST /api/v1/reports/{code}/export", a.reportExport)
 	mux.HandleFunc("GET /api/v1/account/favorites", a.listFavorites)

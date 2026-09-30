@@ -25,6 +25,7 @@ export function PublicFrame({
             <a href={homePath(locale)}>{copy.home}</a>
             <a href={locale === "en" ? "/en/search" : "/search"}>{copy.search}</a>
             <a href={locale === "en" ? "/en/favorites" : "/favorites"}>{copy.favorites}</a>
+            <a href={locale === "en" ? "/en/owner" : "/owner"}>{copy.owner}</a>
             <a href={locale === "en" ? "/en/stay" : "/stay"}>{copy.stay}</a>
             <a href={locale === "en" ? "/en/messages" : "/messages"}>{copy.messages}</a>
             <a href={locale === "en" ? "/en/disputes" : "/disputes"}>{copy.disputes}</a>

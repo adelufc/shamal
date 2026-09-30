@@ -30,6 +30,20 @@ func (a *API) report(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, item)
 }
 
+func (a *API) ownerPerformance(w http.ResponseWriter, r *http.Request) {
+	_, user, err := a.sessionUser(r)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	item, err := a.Reports.Owner(r.Context(), user.ID, r.URL.Query().Get("from"), r.URL.Query().Get("to"), time.Now().UTC())
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+
 func (a *API) reportExport(w http.ResponseWriter, r *http.Request) {
 	if _, err := a.authorize(r, "reports", permissions.ActionView, &permissions.Resource{CompanyID: seed.CompanyID, CreatedBy: "system"}); err != nil {
 		writeErr(w, r, err)
