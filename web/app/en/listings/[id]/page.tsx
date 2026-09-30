@@ -1,4 +1,4 @@
-import { ListingBody } from "@/app/listings/[id]/page";
+import { ListingBody } from "@/components/listing-body";
 import { PublicFrame } from "@/components/public-frame";
 import { listingPath } from "@/lib/chrome";
 

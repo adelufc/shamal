@@ -84,13 +84,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 	}
-	if err := grant(ctx, tx, EditorID, []string{"view", "create", "update", "delete_draft"}, []string{"geography", "catalog"}); err != nil {
-		return err
-	}
-	if err := grant(ctx, tx, EditorID, []string{"view", "create"}, []string{"files"}); err != nil {
-		return err
-	}
-	if err := grant(ctx, tx, EditorID, []string{"view"}, []string{"organization"}); err != nil {
+	if err := grant(ctx, tx, EditorID, []string{"view", "create", "update"}, []string{"geography", "catalog"}); err != nil {
 		return err
 	}
 	if err := grant(ctx, tx, ReviewerID, []string{"view", "approve", "publish", "archive"}, []string{"geography", "catalog"}); err != nil {
@@ -185,24 +179,30 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 }
 
 func EnsureCommercial(ctx context.Context, pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(ctx, `
+		DELETE FROM permissions.rules
+		WHERE grantee_type = 'user' AND grantee_id = $1
+		  AND (
+		    domain IN ('clients','visits','deals','finance','messages','disputes','files','organization')
+		    OR (domain IN ('geography','catalog') AND action = 'delete_draft')
+		    OR (domain = 'reports' AND action = 'view' AND source_label = 'seed')
+		  )
+	`, EditorID); err != nil {
+		return err
+	}
 	grants := []struct{ user, action, domain string }{
-		{EditorID, "view", "clients"}, {EditorID, "create", "clients"}, {EditorID, "update", "clients"},
-		{EditorID, "view", "visits"}, {EditorID, "create", "visits"}, {EditorID, "update", "visits"},
-		{EditorID, "view", "deals"}, {EditorID, "create", "deals"}, {EditorID, "update", "deals"},
 		{ReviewerID, "view", "visits"}, {ReviewerID, "approve", "visits"},
 		{ReviewerID, "view", "clients"}, {ReviewerID, "view", "deals"},
 		{ManagerID, "view", "deals"}, {ManagerID, "approve", "deals"},
 		{ManagerID, "view", "visits"}, {ManagerID, "archive", "visits"},
 		{ManagerID, "view", "clients"}, {ManagerID, "archive", "clients"},
-		{EditorID, "view", "finance"}, {ReviewerID, "view", "finance"}, {ReviewerID, "approve", "finance"},
+		{ReviewerID, "view", "finance"}, {ReviewerID, "approve", "finance"},
 		{ManagerID, "view", "finance"}, {ManagerID, "approve", "finance"},
-		{EditorID, "view", "messages"}, {EditorID, "create", "messages"}, {EditorID, "update", "messages"},
 		{ReviewerID, "view", "messages"},
 		{ManagerID, "view", "messages"}, {ManagerID, "archive", "messages"},
-		{EditorID, "view", "disputes"}, {EditorID, "create", "disputes"}, {EditorID, "update", "disputes"},
 		{ReviewerID, "view", "disputes"}, {ReviewerID, "approve", "disputes"},
 		{ManagerID, "view", "disputes"}, {ManagerID, "approve", "disputes"},
-		{EditorID, "view", "reports"}, {ReviewerID, "view", "reports"}, {ManagerID, "view", "reports"},
+		{ReviewerID, "view", "reports"}, {ManagerID, "view", "reports"},
 		{ManagerID, "create", "permissions"},
 	}
 	for _, item := range grants {

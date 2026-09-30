@@ -47,7 +47,11 @@ func TestStaffAccess(t *testing.T) {
 	editor := c.login("editor@shamal.local", seed.EditorTOTP)
 	manager := c.login("manager@shamal.local", seed.ManagerTOTP)
 
-	status, structure := c.getAuth("/api/v1/org/structure?q=editor", editor)
+	status, deniedStructure := c.getAuth("/api/v1/org/structure?q=editor", editor)
+	if status != 403 {
+		t.Fatalf("editor structure: %d %v", status, deniedStructure)
+	}
+	status, structure := c.getAuth("/api/v1/org/structure?q=editor", manager)
 	if status != 200 {
 		t.Fatalf("structure: %d %v", status, structure)
 	}
@@ -59,7 +63,7 @@ func TestStaffAccess(t *testing.T) {
 	}
 
 	status, account := c.getAuth("/api/v1/permissions/account", editor)
-	if status != 200 || !hasRule(t, account["direct"], "organization", "view") {
+	if status != 200 || !hasRule(t, account["direct"], "catalog", "view") || hasRule(t, account["direct"], "clients", "view") || hasRule(t, account["direct"], "finance", "view") || hasRule(t, account["direct"], "deals", "view") || hasRule(t, account["direct"], "disputes", "view") {
 		t.Fatalf("editor account: %d %v", status, account)
 	}
 	status, other := c.getAuth("/api/v1/permissions/account?user_id="+seed.ManagerID, editor)

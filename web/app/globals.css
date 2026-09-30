@@ -10,7 +10,7 @@
   --color-card: #ffffff;
   --color-warn: #a52d35;
   --color-focus: #1d70a2;
-  --font-sans: "Noto Sans Arabic", Tahoma, sans-serif;
+  --font-sans: Tahoma, sans-serif;
 }
 
 body {

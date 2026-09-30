@@ -1,4 +1,4 @@
-import { ContentBody } from "@/app/content/[slug]/page";
+import { ContentBody } from "@/components/content-body";
 import { PublicFrame } from "@/components/public-frame";
 import { chrome, contentPath } from "@/lib/chrome";
 import { loadContent } from "@/lib/public";

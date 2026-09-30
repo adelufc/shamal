@@ -1,4 +1,4 @@
-import { NeighborhoodBody } from "@/app/neighborhoods/[slug]/page";
+import { NeighborhoodBody } from "@/components/neighborhood-body";
 import { PublicFrame } from "@/components/public-frame";
 import { loadNeighborhood } from "@/lib/public";
 

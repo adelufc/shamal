@@ -128,9 +128,14 @@ func TestReviewPaths(t *testing.T) {
 	}
 
 	editor := c.login("editor@shamal.local", seed.EditorTOTP)
-	status, occupancy := c.getAuth("/api/v1/reports/occupancy", editor)
+	reviewer := c.login("reviewer@shamal.local", seed.ReviewerTOTP)
+	status, occupancy := c.getAuth("/api/v1/reports/occupancy", reviewer)
 	if status != 200 {
 		t.Fatalf("occupancy: %d %v", status, occupancy)
+	}
+	status, editorReport := c.getAuth("/api/v1/reports/occupancy", editor)
+	if status != 403 {
+		t.Fatalf("editor report: %d %v", status, editorReport)
 	}
 	for _, raw := range asList(t, occupancy["measures"]) {
 		measure := asMap(t, raw)

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -61,9 +62,9 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto grid min-h-screen max-w-md content-center gap-4 px-4">
-      <a href="/" className="text-sm">
+      <Link href="/" className="text-sm">
         شمال العقاري
-      </a>
+      </Link>
       <h1 className="text-2xl font-semibold">دخول فريق العمل</h1>
       <p className="text-sm text-muted">أدخل البريد وكلمة المرور، ثم أدخل رمز التحقق المكون من 6 أرقام من تطبيق المصادقة.</p>
       {challenge === "" ? (
