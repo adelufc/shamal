@@ -78,6 +78,7 @@ const copy = {
     cancel: "إلغاء الزيارة",
     reason: "سبب الإلغاء",
     logout: "خروج",
+    favorites: "المفضلة",
     noListings: "لا توجد إعلانات منشورة لطلب زيارة.",
     loading: "جارٍ التحميل…",
   },
@@ -110,6 +111,7 @@ const copy = {
     cancel: "Cancel the visit",
     reason: "Cancellation reason",
     logout: "Sign out",
+    favorites: "Favorites",
     noListings: "There are no published listings to visit.",
     loading: "Loading…",
   },
@@ -357,9 +359,14 @@ export function AccountDesk({ locale }: { locale: Locale }) {
             <p>
               {account.display_name} · {account.email}
             </p>
-            <button className="underline" onClick={() => void logout()}>
-              {text.logout}
-            </button>
+            <span className="flex gap-3">
+              <a className="underline" href={locale === "en" ? "/en/favorites" : "/favorites"}>
+                {text.favorites}
+              </a>
+              <button className="underline" onClick={() => void logout()}>
+                {text.logout}
+              </button>
+            </span>
           </div>
           {error ? <Failure error={error} /> : null}
           <section className="grid gap-2">

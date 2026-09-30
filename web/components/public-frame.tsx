@@ -24,6 +24,7 @@ export function PublicFrame({
           <nav className="flex items-center gap-4 text-sm">
             <a href={homePath(locale)}>{copy.home}</a>
             <a href={locale === "en" ? "/en/search" : "/search"}>{copy.search}</a>
+            <a href={locale === "en" ? "/en/favorites" : "/favorites"}>{copy.favorites}</a>
             <a href={locale === "en" ? "/en/stay" : "/stay"}>{copy.stay}</a>
             <a href={locale === "en" ? "/en/messages" : "/messages"}>{copy.messages}</a>
             <a href={locale === "en" ? "/en/disputes" : "/disputes"}>{copy.disputes}</a>

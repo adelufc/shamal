@@ -23,6 +23,7 @@ import (
 	"shamal/service/internal/content"
 	"shamal/service/internal/deals"
 	"shamal/service/internal/disputes"
+	"shamal/service/internal/favorites"
 	"shamal/service/internal/files"
 	"shamal/service/internal/finance"
 	"shamal/service/internal/geography"
@@ -56,6 +57,7 @@ type API struct {
 	Disputes     disputes.Service
 	Reports      reports.Service
 	Notify       notify.Service
+	Favorites    favorites.Service
 	Files        files.Local
 	AllowApprox  bool
 	PublicOrigin string
@@ -92,6 +94,7 @@ func New(pool *pgxpool.Pool, rdb *redis.Client, cfg platform.Config) *API {
 		Disputes:     disputes.Service{Pool: pool, Files: files.Local{Root: cfg.StorageDir}, Finance: finance.Service{Pool: pool}},
 		Reports:      reports.Service{Pool: pool},
 		Notify:       notify.Service{Pool: pool},
+		Favorites:    favorites.Service{Pool: pool},
 		Files:        files.Local{Root: cfg.StorageDir},
 		AllowApprox:  cfg.AllowApprox,
 		PublicOrigin: cfg.PublicOrigin,
@@ -220,6 +223,9 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/files/{area}/{key}", a.download)
 	mux.HandleFunc("GET /api/v1/reports/{code}", a.report)
 	mux.HandleFunc("POST /api/v1/reports/{code}/export", a.reportExport)
+	mux.HandleFunc("GET /api/v1/account/favorites", a.listFavorites)
+	mux.HandleFunc("POST /api/v1/account/favorites", a.addFavorite)
+	mux.HandleFunc("DELETE /api/v1/account/favorites/{id}", a.removeFavorite)
 	mux.HandleFunc("GET /api/v1/account/searches", a.listSearches)
 	mux.HandleFunc("POST /api/v1/account/searches", a.saveSearch)
 	mux.HandleFunc("POST /api/v1/account/searches/{id}/mute", a.muteSearch)
@@ -788,6 +794,7 @@ func text(code, locale string) string {
 		"compensation_needs_booking":   "قرار التعويض يحتاج حجزاً مرتبطاً، ولا يحرّك مالاً بنفسه.",
 		"export_unapproved":            "التصدير غير معتمد. صلاحية العرض لا تشمل ملفاً ولا تصدير Access.",
 		"search_limit":                 "حد البحوث المحفوظة عشرون بحثاً للحساب.",
+		"listing_not_published":        "لا تُحفظ في المفضلة إلا الإعلانات المنشورة.",
 		"invalid_amenity":              "المرفق غير معروف. المرافق المعتمدة: مفروش، تكييف، إنترنت، موقف، مفارش، دخول ذاتي.",
 		"invalid_rooms":                "عدد غرف النوم يجب أن يكون بين 1 و 30.",
 		"marketing_unapproved":         "لا يُرسل بريد تسويقي. القناة المعتمدة هنا هي الإشعار داخل التطبيق فقط.",
@@ -886,6 +893,7 @@ func text(code, locale string) string {
 		"compensation_needs_booking":   "A compensation decision needs a linked booking and does not move money by itself.",
 		"export_unapproved":            "Export is not adopted. View permission does not include a file or an Access export.",
 		"search_limit":                 "An account can keep twenty saved searches.",
+		"listing_not_published":        "Only a published listing can be saved as a favorite.",
 		"invalid_amenity":              "That amenity is unknown. The known ones are furnished, air conditioning, internet, parking, bedding, and self entry.",
 		"invalid_rooms":                "The bedroom count must be from 1 to 30.",
 		"marketing_unapproved":         "Marketing mail is not sent. The channel here is an in-app notice only.",
