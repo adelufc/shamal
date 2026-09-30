@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { ApiFailure, SessionUser } from "@/lib/types";
 import { verificationDigits } from "@/lib/verification-code";
@@ -79,7 +79,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     try {
       const { digits, letters } = verificationDigits(code);
       if (letters || digits.length !== 6) {
-        setNotice("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+        setNotice("أدخل رمز التحقق المكون من 6 أرقام من تطبيق المصادقة");
         return;
       }
       await api("/api/v1/auth/step-up", { method: "POST", body: JSON.stringify({ code: digits }) });
@@ -115,39 +115,48 @@ export function AdminShell({ children }: { children: ReactNode }) {
     (me.actions.finance ?? []).includes("approve") ||
     (me.actions.disputes ?? []).includes("approve");
 
+  const groups = [
+    {
+      title: "المحتوى والعقارات",
+      links: [
+        ["/admin", "ملخص العمل"],
+        ["/admin/neighborhoods", "الأحياء"],
+        ["/admin/catalog", "العقارات"],
+        ["/admin/content", "المحتوى"],
+        ["/admin/listings", "تعديل الإعلان"],
+      ],
+    },
+    {
+      title: "العملاء والعمليات",
+      links: [
+        ["/admin/requests", "الطلبات"],
+        ["/admin/visits", "الزيارات"],
+        ["/admin/deals", "الصفقات"],
+        ["/admin/messages", "الرسائل"],
+        ["/admin/disputes", "النزاعات"],
+      ],
+    },
+    {
+      title: "المال والتقارير",
+      links: [
+        ["/admin/refunds", "الاسترداد"],
+        ["/admin/reports", "التقارير"],
+        ["/owner", "أداء الملاك"],
+      ],
+    },
+    {
+      title: "إدارة النظام",
+      links: [
+        ["/admin/organization", "الهيكل"],
+        ["/admin/permissions", "الصلاحيات"],
+        ["/notifications", "الإشعارات"],
+      ],
+    },
+  ] as const;
+
   return (
     <SessionContext.Provider value={me}>
-      <div className="min-h-screen">
-        <header className="border-b border-line bg-card">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-            <div>
-              <a href="/" className="text-lg font-semibold">
-                شمال العقاري
-              </a>
-              <p className="text-sm text-ink/70">{me.display_name}</p>
-            </div>
-            <nav className="flex flex-wrap items-center gap-4 text-sm">
-              <a href="/admin/neighborhoods">الأحياء</a>
-              <a href="/admin/organization">الهيكل</a>
-              <a href="/admin/permissions">الصلاحيات</a>
-              <a href="/admin/catalog">العقارات</a>
-              <a href="/admin/content">المحتوى</a>
-              <a href="/admin/listings">تعديل الإعلان</a>
-              <a href="/admin/requests">الطلبات</a>
-              <a href="/admin/visits">الزيارات</a>
-              <a href="/admin/deals">الصفقات</a>
-              <a href="/admin/refunds">الاسترداد</a>
-              <a href="/admin/messages">الرسائل</a>
-              <a href="/admin/disputes">النزاعات</a>
-              <a href="/admin/reports">التقارير</a>
-              <a href="/owner">أداء الملاك</a>
-              <a href="/notifications">الإشعارات</a>
-              <button onClick={logout} className="underline">
-                خروج
-              </button>
-            </nav>
-          </div>
-        </header>
+      <AdminFrame path={path} name={me.display_name} groups={groups} onLogout={() => void logout()}>
         {needsStep ? (
           <div className="border-b border-line bg-olive-soft">
             <form
@@ -174,9 +183,79 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </form>
           </div>
         ) : null}
-        <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8">{children}</main>
-      </div>
+        <main className="min-w-0 flex-1 px-4 py-6">{children}</main>
+      </AdminFrame>
     </SessionContext.Provider>
+  );
+}
+
+function AdminFrame({
+  path,
+  name,
+  groups,
+  onLogout,
+  children,
+}: {
+  path: string;
+  name: string;
+  groups: readonly { title: string; links: readonly (readonly [string, string])[] }[];
+  onLogout: () => void;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLElement>(null);
+  function toggle(next: boolean) {
+    setOpen(next);
+    window.setTimeout(() => {
+      if (next) menu.current?.querySelector("a")?.focus();
+      else button.current?.focus();
+    }, 0);
+  }
+  const current = groups.flatMap((group) => [...group.links]).find(([href]) => path === href || (href !== "/admin" && path.startsWith(href)));
+  return (
+    <div className="min-h-screen overflow-x-hidden lg:grid lg:grid-cols-[16rem_1fr]">
+      <p className="bg-[#FFF6DE] px-4 py-2 text-center text-sm text-[#7B560D] lg:col-span-2">بيئة اختبار</p>
+      <aside className="border-b border-line bg-card lg:border-b-0 lg:border-e">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <a href="/admin" className="text-lg font-semibold">
+              شمال العقاري
+            </a>
+            <p className="text-sm text-muted">{name}</p>
+            <p className="text-sm">{current?.[1] ?? "لوحة العمل"}</p>
+          </div>
+          <button
+            ref={button}
+            type="button"
+            className="inline-flex min-h-11 items-center rounded-lg border border-[#7B877D] px-3 lg:hidden"
+            aria-expanded={open}
+            onClick={() => toggle(!open)}
+          >
+            القائمة
+          </button>
+        </div>
+        <nav ref={menu} className={`${open ? "grid" : "hidden"} gap-4 px-4 pb-4 lg:grid`}>
+          {groups.map((group) => (
+            <div key={group.title} className="grid gap-1">
+              <p className="text-sm font-semibold">{group.title}</p>
+              {group.links.map(([href, label]) => {
+                const active = path === href || (href !== "/admin" && path.startsWith(href));
+                return (
+                  <a key={href} href={href} className={`inline-flex min-h-11 items-center rounded-lg px-2 ${active ? "bg-olive-soft font-semibold" : ""}`} aria-current={active ? "page" : undefined}>
+                    {label}
+                  </a>
+                );
+              })}
+            </div>
+          ))}
+          <button type="button" className="inline-flex min-h-11 items-center px-2 text-start underline" onClick={onLogout}>
+            خروج
+          </button>
+        </nav>
+      </aside>
+      <div className="min-w-0">{children}</div>
+    </div>
   );
 }
 

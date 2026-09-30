@@ -71,7 +71,9 @@ func (s Service) Search(ctx context.Context, q SearchQuery) (SearchResult, error
 
 	listSQL := `
 		SELECT l.id::text, l.neighborhood_id::text, l.transaction_type, COALESCE(l.price_minor, 0), l.price_unit, l.currency,
-		       COALESCE(t.title, ''), COALESCE(t.description, ''), COALESCE(p.area_sqm, 0)
+		       COALESCE(t.title, ''), COALESCE(t.description, ''), COALESCE(p.area_sqm, 0),
+		       u.rooms, p.type_code,
+		       EXISTS (SELECT 1 FROM identity.contact_methods c WHERE c.user_id = p.owner_user_id AND c.verified_at IS NOT NULL)
 	` + where + `
 		ORDER BY ` + OrderBy(q.Sort) + `
 		LIMIT $16 OFFSET $17`
@@ -89,7 +91,7 @@ func (s Service) Search(ctx context.Context, q SearchQuery) (SearchResult, error
 	if !UseClusters(total) {
 		markerSQL := `
 			SELECT l.id::text, l.neighborhood_id::text, l.transaction_type, COALESCE(l.price_minor, 0), l.price_unit, l.currency,
-			       COALESCE(t.title, ''), '', 0
+			       COALESCE(t.title, ''), '', 0, u.rooms, p.type_code, false
 		` + where + `
 			ORDER BY ` + OrderBy(q.Sort) + `
 			LIMIT $16`
@@ -114,7 +116,7 @@ func scanHits(rows interface {
 	out := make([]SearchHit, 0)
 	for rows.Next() {
 		var item SearchHit
-		if err := rows.Scan(&item.ID, &item.NeighborhoodID, &item.TransactionType, &item.PriceMinor, &item.PriceUnit, &item.Currency, &item.Title, &item.Description, &item.AreaSqm); err != nil {
+		if err := rows.Scan(&item.ID, &item.NeighborhoodID, &item.TransactionType, &item.PriceMinor, &item.PriceUnit, &item.Currency, &item.Title, &item.Description, &item.AreaSqm, &item.Rooms, &item.TypeCode, &item.OwnerVerified); err != nil {
 			return nil, err
 		}
 		out = append(out, item)

@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useRef, useState, type ReactNode } from "react";
 import type { Locale } from "@/lib/types";
 import { chrome, homePath, languageHref } from "@/lib/chrome";
 import { DocumentLocale } from "./document-locale";
@@ -13,32 +15,70 @@ export function PublicFrame({
   children: ReactNode;
 }) {
   const copy = chrome[locale];
+  const [open, setOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLElement>(null);
+  const prefix = locale === "en" ? "/en" : "";
+  const links = [
+    { href: homePath(locale), label: copy.home },
+    { href: `${prefix}/search`, label: copy.search },
+    { href: `${prefix}/request`, label: copy.request },
+    { href: `${prefix}/account`, label: copy.account },
+    { href: `${prefix}/favorites`, label: copy.favorites },
+    { href: `${prefix}/stay`, label: copy.stay },
+    { href: `${prefix}/messages`, label: copy.messages },
+    { href: `${prefix}/disputes`, label: copy.disputes },
+    { href: `${prefix}/notifications`, label: copy.notifications },
+    { href: `${prefix}/owner`, label: copy.owner },
+    { href: "/admin/login", label: copy.admin },
+    { href: languageHref(locale, path), label: copy.language },
+  ];
+
+  function toggle(next: boolean) {
+    setOpen(next);
+    window.setTimeout(() => {
+      if (next) menu.current?.querySelector("a")?.focus();
+      else menuButton.current?.focus();
+    }, 0);
+  }
+
   return (
-    <div dir={locale === "en" ? "ltr" : "rtl"} lang={locale} className="min-h-screen">
+    <div dir={locale === "en" ? "ltr" : "rtl"} lang={locale} className="min-h-screen overflow-x-hidden">
       <DocumentLocale locale={locale} />
+      <p className="bg-[#FFF6DE] px-4 py-2 text-center text-sm text-[#7B560D]">{copy.testEnv}</p>
       <header className="border-b border-line bg-card">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <a href={homePath(locale)} className="text-lg font-semibold">
             {copy.brand}
           </a>
-          <nav className="flex items-center gap-4 text-sm">
-            <a href={homePath(locale)}>{copy.home}</a>
-            <a href={locale === "en" ? "/en/search" : "/search"}>{copy.search}</a>
-            <a href={locale === "en" ? "/en/favorites" : "/favorites"}>{copy.favorites}</a>
-            <a href={locale === "en" ? "/en/owner" : "/owner"}>{copy.owner}</a>
-            <a href={locale === "en" ? "/en/stay" : "/stay"}>{copy.stay}</a>
-            <a href={locale === "en" ? "/en/messages" : "/messages"}>{copy.messages}</a>
-            <a href={locale === "en" ? "/en/disputes" : "/disputes"}>{copy.disputes}</a>
-            <a href={locale === "en" ? "/en/notifications" : "/notifications"}>{copy.notifications}</a>
-            <a href={locale === "en" ? "/en/request" : "/request"}>{copy.request}</a>
-            <a href={locale === "en" ? "/en/account" : "/account"}>{copy.account}</a>
-            <a href="/admin/login">{copy.admin}</a>
+          <button
+            ref={menuButton}
+            type="button"
+            className="inline-flex min-h-11 items-center rounded-lg border border-[#7B877D] px-3 md:hidden"
+            aria-expanded={open}
+            onClick={() => toggle(!open)}
+          >
+            {locale === "en" ? "Menu" : "القائمة"}
+          </button>
+          <nav className="hidden flex-wrap items-center gap-4 text-sm md:flex">
+            {links.slice(0, 4).map((item) => (
+              <a key={item.href + item.label} href={item.href}>
+                {item.label}
+              </a>
+            ))}
             <a href={languageHref(locale, path)}>{copy.language}</a>
           </nav>
         </div>
+        <nav ref={menu} className={`${open ? "grid" : "hidden"} gap-1 border-t border-line px-4 py-3 text-sm md:hidden`}>
+          {links.map((item) => (
+            <a key={item.href + item.label} className="inline-flex min-h-11 items-center" href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
       </header>
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8">{children}</main>
-      <footer className="mx-auto grid max-w-5xl gap-2 px-4 pb-10 text-sm text-ink/70">
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8">{children}</main>
+      <footer className="mx-auto grid max-w-6xl gap-2 px-4 pb-10 text-sm text-muted">
         <p>{copy.boundary}</p>
         <p>{copy.priceNote}</p>
       </footer>

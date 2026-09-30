@@ -51,7 +51,9 @@ type Account = {
 const copy = {
   ar: {
     title: "حسابي",
-    lead: "أنشئ حساباً للمتابعة، أو ادخل بحساب عميل. الحساب لا يطلب رمز تحقق.",
+    lead: "حساب العميل لا يطلب رمز تحقق. حساب الفريق يطلبه من شاشة المكتب. لا توجد قناة إرسال معتمدة لاستعادة كلمة المرور، ولن يُكشف إن كان البريد مسجلاً.",
+    showPassword: "إظهار كلمة المرور",
+    recovery: "استعادة كلمة المرور غير مفعّلة. لا تُرسل رسالة، ولا يُؤكد وجود البريد.",
     register: "حساب جديد",
     login: "دخول",
     name: "الاسم",
@@ -85,7 +87,9 @@ const copy = {
   },
   en: {
     title: "My account",
-    lead: "Create an account to follow a request, or sign in as a client. This account does not ask for a verification code.",
+    lead: "A client account does not ask for a verification code. A staff account does, on the work desk. No recovery channel is adopted, and the page does not say whether an email exists.",
+    showPassword: "Show password",
+    recovery: "Password recovery is not enabled. No message is sent, and the email is not confirmed as present or absent.",
     register: "New account",
     login: "Sign in",
     name: "Name",
@@ -189,6 +193,8 @@ export function AccountDesk({ locale }: { locale: Locale }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tab, setTab] = useState<"login" | "register">("login");
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState("");
   const [listing, setListing] = useState("");
   const [when, setWhen] = useState("");
@@ -317,8 +323,18 @@ export function AccountDesk({ locale }: { locale: Locale }) {
       <h1 className="text-2xl font-semibold">{text.title}</h1>
       {state === "guest" ? (
         <>
-          <p className="text-sm text-ink/80">{text.lead}</p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <p className="text-sm text-muted">{text.lead}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant={tab === "login" ? "primary" : "ghost"} onClick={() => setTab("login")}>
+              {text.login}
+            </Button>
+            <Button type="button" variant={tab === "register" ? "primary" : "ghost"} onClick={() => setTab("register")}>
+              {text.register}
+            </Button>
+          </div>
+          <p className="text-sm text-muted">{text.recovery}</p>
+          <div className="grid gap-4">
+            {tab === "register" ? (
             <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={(event) => void register(event)}>
               <h2 className="font-semibold">{text.register}</h2>
               <Label>
@@ -331,14 +347,19 @@ export function AccountDesk({ locale }: { locale: Locale }) {
               </Label>
               <Label>
                 {text.password}
-                <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                <Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} />
               </Label>
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
+                {text.showPassword}
+              </label>
               <Label>
                 {text.phone}
                 <Input value={phone} onChange={(event) => setPhone(event.target.value)} />
               </Label>
               <Button type="submit">{text.create}</Button>
             </form>
+            ) : (
             <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={(event) => void login(event)}>
               <h2 className="font-semibold">{text.login}</h2>
               <Label>
@@ -347,10 +368,11 @@ export function AccountDesk({ locale }: { locale: Locale }) {
               </Label>
               <Label>
                 {text.password}
-                <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                <Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} />
               </Label>
               <Button type="submit">{text.enter}</Button>
             </form>
+            )}
           </div>
           {error ? <Failure error={error} /> : null}
         </>

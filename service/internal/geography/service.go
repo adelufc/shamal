@@ -656,9 +656,20 @@ func (s Service) BySlug(ctx context.Context, locale, slug string) (Neighborhood,
 		`, locale, slug).Scan(&id)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Neighborhood{}, platform.E("not_found", 404)
-	}
-	if err != nil {
+		var status string
+		idErr := s.Pool.QueryRow(ctx, `
+			SELECT id::text, status FROM geography.neighborhoods WHERE id::text = $1
+		`, slug).Scan(&id, &status)
+		if errors.Is(idErr, pgx.ErrNoRows) {
+			return Neighborhood{}, platform.E("not_found", 404)
+		}
+		if idErr != nil {
+			return Neighborhood{}, idErr
+		}
+		if status != "published" {
+			return Neighborhood{}, platform.E("unpublished", 404)
+		}
+	} else if err != nil {
 		return Neighborhood{}, err
 	}
 	item, err := s.Get(ctx, id)

@@ -177,16 +177,31 @@ func (s Service) Get(ctx context.Context, id string) (Request, error) {
 	return scanRequest(row)
 }
 
-func (s Service) List(ctx context.Context, companyID, stage string, page, size int) ([]Request, int, error) {
+func (s Service) List(ctx context.Context, companyID, stage, query string, unassigned bool, page, size int) ([]Request, int, error) {
+	query = strings.TrimSpace(query)
 	var total int
-	if err := s.DB.QueryRow(ctx, `SELECT count(*) FROM clients.requests WHERE company_id = $1 AND ($2 = '' OR stage = $2)`, companyID, stage).Scan(&total); err != nil {
+	if err := s.DB.QueryRow(ctx, `
+		SELECT count(*)
+		FROM clients.requests r
+		JOIN clients.profiles p ON p.id = r.profile_id
+		WHERE r.company_id = $1
+		  AND ($2 = '' OR r.stage = $2)
+		  AND ($3 = '' OR p.email ILIKE '%' || $3 || '%' OR p.display_name ILIKE '%' || $3 || '%' OR r.id::text ILIKE '%' || $3 || '%')
+		  AND ($4 = false OR r.assignee_id IS NULL)
+	`, companyID, stage, query, unassigned).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.DB.Query(ctx, `
-		SELECT id::text FROM clients.requests
-		WHERE company_id = $1 AND ($2 = '' OR stage = $2)
-		ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4
-	`, companyID, stage, size, (page-1)*size)
+		SELECT r.id::text
+		FROM clients.requests r
+		JOIN clients.profiles p ON p.id = r.profile_id
+		WHERE r.company_id = $1
+		  AND ($2 = '' OR r.stage = $2)
+		  AND ($3 = '' OR p.email ILIKE '%' || $3 || '%' OR p.display_name ILIKE '%' || $3 || '%' OR r.id::text ILIKE '%' || $3 || '%')
+		  AND ($4 = false OR r.assignee_id IS NULL)
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT $5 OFFSET $6
+	`, companyID, stage, query, unassigned, size, (page-1)*size)
 	if err != nil {
 		return nil, 0, err
 	}

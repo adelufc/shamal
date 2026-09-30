@@ -20,8 +20,9 @@ export type PublicListing = {
   price_unit: string;
   currency: string;
   texts?: { locale: string; title: string; description: string }[];
-  precise_lon?: number | null;
-  precise_lat?: number | null;
+  area_sqm?: number;
+  rooms?: number | null;
+  type_code?: string;
 };
 
 export type PublicContent = {

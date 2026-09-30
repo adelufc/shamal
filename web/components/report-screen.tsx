@@ -47,6 +47,11 @@ const copy = {
     neighborhood: "الحي",
     transaction: "نوع المعاملة",
     status: "الحالة",
+    basis: "أساس التاريخ هو وصول الضيف للحجز، وليس تاريخ حركة المال.",
+    today: "اليوم",
+    week: "الأسبوع",
+    month: "الشهر",
+    method: "تفاصيل المنهجية",
     any: "الكل",
     run: "عرض التقرير",
     generated: "وقت التوليد",
@@ -79,6 +84,11 @@ const copy = {
     neighborhood: "Neighborhood",
     transaction: "Transaction",
     status: "Status",
+    basis: "The date basis is the guest arrival of the booking, not a money-movement date.",
+    today: "Today",
+    week: "Week",
+    month: "Month",
+    method: "Method details",
     any: "Any",
     run: "Show the report",
     generated: "Generated at",
@@ -114,7 +124,15 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
   const [status, setStatus] = useState("");
   const [places, setPlaces] = useState<{ id: string; name: string }[]>([]);
   const [branches, setBranches] = useState<{ id: string; name_ar: string; name_en: string }[]>([]);
-  const [report, setReport] = useState<Report | null>(null);
+    const [report, setReport] = useState<Report | null>(null);
+    const measureName: Record<string, string> = {
+      count: locale === "en" ? "Count" : "العدد",
+      attempt_count: locale === "en" ? "Attempts" : "عدد المحاولات",
+      collected_minor: locale === "en" ? "Collected" : "المحصّل",
+      not_run: locale === "en" ? "Not run" : "لم يُشغَّل",
+      occupancy_rate: locale === "en" ? "Occupancy rate" : "نسبة الإشغال",
+      occupied_nights: locale === "en" ? "Occupied nights" : "ليالي الإشغال",
+    };
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
 
@@ -130,7 +148,10 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
     if (status) query.set("status", status);
     const suffix = query.toString() ? `?${query}` : "";
     try {
-      setReport(await api<Report>(`/api/v1/reports/${next}${suffix}`, { headers: { "Accept-Language": locale } }));
+      const body = await api<Report>(`/api/v1/reports/${next}${suffix}`, { headers: { "Accept-Language": locale } });
+      setReport(body);
+      if (!from && body.period_start) setFrom(body.period_start.slice(0, 10));
+      if (!to && body.period_end) setTo(body.period_end.slice(0, 10));
     } catch (err) {
       setReport(null);
       setError(err);
@@ -150,6 +171,14 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
     // The first read uses the server's Riyadh day when the date fields are empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
+
+  function fillPeriod(daysBack: number) {
+    const end = new Date();
+    const start = new Date(end.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    const stamp = (value: Date) => value.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+    setFrom(stamp(start));
+    setTo(stamp(end));
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -209,7 +238,15 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.status}
-          <Input value={status} onChange={(event) => setStatus(event.target.value)} />
+          <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">{text.any}</option>
+            <option value="new">{locale === "en" ? "New" : "جديد"}</option>
+            <option value="confirmed">{locale === "en" ? "Confirmed" : "مؤكد"}</option>
+            <option value="completed">{locale === "en" ? "Completed" : "مكتمل"}</option>
+            <option value="cancelled">{locale === "en" ? "Cancelled" : "ملغى"}</option>
+            <option value="published">{locale === "en" ? "Published" : "منشور"}</option>
+            <option value="draft">{locale === "en" ? "Draft" : "مسودة"}</option>
+          </select>
         </Label>
         <Label>
           {text.branch}
@@ -222,6 +259,18 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
             ))}
           </select>
         </Label>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="ghost" onClick={() => fillPeriod(0)}>
+            {text.today}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => fillPeriod(6)}>
+            {text.week}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => fillPeriod(29)}>
+            {text.month}
+          </Button>
+        </div>
+        <p className="text-sm text-muted sm:col-span-2">{text.basis}</p>
         <Button type="submit">{text.run}</Button>
       </form>
       {loading ? <p className="text-sm">{locale === "en" ? "Loading…" : "جارٍ التحميل…"}</p> : null}
@@ -242,8 +291,8 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
           <p>{locale === "en" ? report.definition_en : report.definition_ar}</p>
           <dl className="grid gap-2 text-sm">
             <div>
-              <dt className="text-ink/70">{text.generated}</dt>
-              <dd>{report.generated_at}</dd>
+              <dt className="text-muted">{text.generated}</dt>
+              <dd>{new Date(report.generated_at).toLocaleString(locale === "en" ? "en-SA" : "ar-SA", { timeZone: "Asia/Riyadh" })} · {report.timezone}</dd>
             </div>
             <div>
               <dt className="text-ink/70">{text.period}</dt>
@@ -251,10 +300,12 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
                 {report.period_start} – {report.period_end} ({report.timezone})
               </dd>
             </div>
-            <div>
-              <dt className="text-ink/70">{text.source}</dt>
-              <dd>{report.source}</dd>
-            </div>
+            <details>
+              <summary>{text.method}</summary>
+              <p>
+                {text.source}: {report.source}
+              </p>
+            </details>
             <div>
               <dt className="text-ink/70">{text.exclusions}</dt>
               <dd>{locale === "en" ? report.exclusions_en : report.exclusions_ar}</dd>
@@ -272,7 +323,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
           <ul className="grid gap-3">
             {report.measures.map((item) => (
               <li key={item.code} className="rounded-md border border-line p-3">
-                <p className="font-semibold">{item.code}</p>
+                <p className="font-semibold">{measureName[item.code] ?? (locale === "en" ? item.definition_en : item.definition_ar)}</p>
                 <p className="text-lg">{formatMeasure(item, locale, text.undefined)}</p>
                 <p className="text-sm text-ink/80">{locale === "en" ? item.definition_en : item.definition_ar}</p>
               </li>

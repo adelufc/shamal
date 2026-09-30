@@ -6,7 +6,8 @@ import { Failure, api } from "@/components/admin-shell";
 import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { money, priceUnit } from "@/lib/chrome";
+import { ListingCard } from "@/components/listing-card";
+import { money } from "@/lib/chrome";
 import type { Locale } from "@/lib/types";
 
 type Place = {
@@ -29,6 +30,9 @@ type Hit = {
   title: string;
   description: string;
   area_sqm: number;
+  rooms: number | null;
+  type_code: string;
+  owner_verified: boolean;
 };
 
 type Marker = Hit & { lon: number; lat: number };
@@ -72,7 +76,7 @@ type SearchPayload = {
 const copy = {
   ar: {
     title: "بحث وخريطة",
-    lead: "القائمة والخريطة تستخدمان الطلب نفسه. تحريك الخريطة لا يغيّر النتائج إلا بعد «البحث في هذه المنطقة». السعر بالريال كما أدخله منشئ الإعلان.",
+    lead: "حرّك الخريطة ثم اختر البحث في هذه المنطقة. السعر بالريال كما أدخله منشئ الإعلان.",
     query: "الاسم أو الحي",
     neighborhood: "الحي",
     anyNeighborhood: "كل الأحياء المنشورة",
@@ -105,7 +109,7 @@ const copy = {
     apply: "بحث",
     stay: "تسعير الإقامة وتثبيتها",
     results: "نتيجة",
-    empty: "لا توجد إعلانات منشورة تطابق هذه الفلاتر.",
+    empty: "لم نجد عقارات تطابق اختياراتك. جرّب إزالة بعض المرشحات",
     widenPrice: "إزالة حد السعر",
     widenNeighborhood: "إزالة الحي",
     widenText: "إزالة الاسم",
@@ -117,13 +121,22 @@ const copy = {
     zoomOut: "تبعيد",
     mapUnavailable: "تعذّر رسم الخريطة. القائمة والتصفية ما زالتا متاحتين.",
     loading: "جارٍ التحميل…",
-    areaNote: "العلامات عند مركز الحي المنشور، وليست موقع العقار الدقيق. الحدود تقريبية للاختبار.",
+    areaNote: "موقع تقريبي داخل الحي. العلامات عند مركز الحي، وليست موقع العقار.",
+    mapScope: "تجمعات الخريطة تشمل كل النتائج المطابقة، والقائمة تعرض الصفحة الحالية.",
+    extra: "مرشحات إضافية",
+    range: "عرض",
+    of: "من",
+    to: "إلى",
+    previous: "السابق",
+    next: "التالي",
+    list: "القائمة",
+    map: "الخريطة",
     applied: "الفلاتر المستخدمة",
     page: "الصفحة",
   },
   en: {
     title: "Search and map",
-    lead: "The list and the map use the same query. Moving the map does not change the results until you choose “Search this area”. The price is the amount entered by the person who created the listing, in SAR.",
+    lead: "Move the map, then choose search this area. The price is the amount entered by the person who created the listing, in SAR.",
     query: "Name or neighborhood",
     neighborhood: "Neighborhood",
     anyNeighborhood: "All published neighborhoods",
@@ -156,7 +169,7 @@ const copy = {
     apply: "Search",
     stay: "Price and hold this stay",
     results: "results",
-    empty: "No published listings match these filters.",
+    empty: "No properties match these choices. Try removing a filter.",
     widenPrice: "Remove the price bound",
     widenNeighborhood: "Remove the neighborhood",
     widenText: "Remove the name",
@@ -168,7 +181,16 @@ const copy = {
     zoomOut: "Zoom out",
     mapUnavailable: "The map could not be drawn. The list and the filters are still available.",
     loading: "Loading…",
-    areaNote: "Markers sit on the published neighborhood center, not the precise property location. The boundaries are approximate test masks.",
+    areaNote: "Approximate location inside the neighborhood. Markers sit on the neighborhood center, not the property.",
+    mapScope: "Map groups cover every matching result. The list shows the current page.",
+    extra: "More filters",
+    range: "Showing",
+    of: "of",
+    to: "to",
+    previous: "Previous",
+    next: "Next",
+    list: "List",
+    map: "Map",
     applied: "Filters in this query",
     page: "Page",
   },
@@ -194,6 +216,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
   const [bedrooms, setBedrooms] = useState(params.get("bedrooms") ?? "");
   const [picked, setPicked] = useState(params.get("amenities") ?? "");
   const [verified, setVerified] = useState(params.get("verified") === "1");
+  const [pane, setPane] = useState<"list" | "map">("list");
 
   const base = locale === "en" ? "/en/search" : "/search";
   const requestHref = locale === "en" ? "/en/request" : "/request";
@@ -261,6 +284,14 @@ export function SearchScreen({ locale }: { locale: Locale }) {
   function without(keys: string[]) {
     const next = new URLSearchParams(params.toString());
     for (const key of keys) next.delete(key);
+    next.delete("page");
+    push(next);
+  }
+
+  function goTo(page: number) {
+    const next = new URLSearchParams(params.toString());
+    if (page <= 1) next.delete("page");
+    else next.set("page", String(page));
     push(next);
   }
 
@@ -316,6 +347,8 @@ export function SearchScreen({ locale }: { locale: Locale }) {
             {text.priceMax}
             <Input value={priceMax} onChange={(event) => setPriceMax(event.target.value)} inputMode="decimal" />
           </Label>
+          <details className="grid gap-3 rounded-lg bg-olive-soft p-3 md:col-span-2">
+            <summary className="min-h-11 cursor-pointer">{text.extra}</summary>
           <Label>
             {text.bedrooms}
             <Input value={bedrooms} onChange={(event) => setBedrooms(event.target.value)} inputMode="numeric" />
@@ -348,6 +381,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
               })}
             </div>
           </fieldset>
+          </details>
           <div className="md:col-span-2">
             <Button type="submit">{text.apply}</Button>
           </div>
@@ -357,9 +391,19 @@ export function SearchScreen({ locale }: { locale: Locale }) {
         {payload && state === "ready" ? (
           <>
             <p className="text-sm">
-              {payload.total} {text.results}
-              {payload.page > 1 ? ` · ${text.page} ${payload.page}` : ""}
+              {payload.total === 0
+                ? `0 ${text.results}`
+                : `${text.range} ${(payload.page - 1) * payload.page_size + 1} ${text.to} ${Math.min(payload.page * payload.page_size, payload.total)} ${text.of} ${payload.total}`}
             </p>
+            <p className="text-sm text-muted">{text.mapScope}</p>
+            <div className="flex gap-2 lg:hidden">
+              <Button type="button" variant={pane === "list" ? "primary" : "ghost"} onClick={() => setPane("list")}>
+                {text.list}
+              </Button>
+              <Button type="button" variant={pane === "map" ? "primary" : "ghost"} onClick={() => setPane("map")}>
+                {text.map}
+              </Button>
+            </div>
             {payload.total === 0 ? (
               <div className="grid gap-2 rounded-lg border border-dashed border-line bg-card p-4 text-sm">
                 <p>{text.empty}</p>
@@ -408,22 +452,40 @@ export function SearchScreen({ locale }: { locale: Locale }) {
               </div>
             ) : null}
             <div className="grid gap-4 lg:grid-cols-2">
+              <div className={pane === "map" ? "hidden lg:grid" : "grid gap-3"}>
               <ul className="grid gap-3">
-                {payload.listings.map((item) => (
-                  <li key={item.id} className="rounded-lg border border-line bg-card p-4">
-                    <h2 className="font-semibold">{item.title}</h2>
-                    <p className="mt-1 text-sm text-ink/80">{item.description}</p>
-                    <p className="mt-2 text-sm">
-                      {money(item.price_minor, locale)} {priceUnit(locale, item.price_unit, item.transaction_type)}
-                    </p>
-                    {item.transaction_type === "daily" || item.transaction_type === "monthly" ? (
-                      <a className="mt-2 inline-block text-sm underline" href={`${locale === "en" ? "/en/stay" : "/stay"}?listing=${item.id}`}>
-                        {text.stay}
-                      </a>
-                    ) : null}
-                  </li>
-                ))}
+                {payload.listings.map((item) => {
+                  const place = payload.places.find((entry) => entry.id === item.neighborhood_id);
+                  return (
+                    <li key={item.id}>
+                      <ListingCard
+                        locale={locale}
+                        id={item.id}
+                        title={item.title}
+                        description={item.description}
+                        neighborhood={place?.name}
+                        typeName={item.type_code}
+                        area={item.area_sqm}
+                        rooms={item.rooms}
+                        priceMinor={item.price_minor}
+                        unit={item.price_unit}
+                        transaction={item.transaction_type}
+                        verified={item.owner_verified}
+                      />
+                    </li>
+                  );
+                })}
               </ul>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="ghost" disabled={payload.page <= 1} onClick={() => goTo(payload.page - 1)}>
+                  {text.previous}
+                </Button>
+                <Button type="button" variant="ghost" disabled={payload.page * payload.page_size >= payload.total} onClick={() => goTo(payload.page + 1)}>
+                  {text.next}
+                </Button>
+              </div>
+              </div>
+              <div className={pane === "list" ? "hidden lg:block" : "block"}>
               <ListingMap
                 locale={locale}
                 places={payload.places}
@@ -442,6 +504,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
                   push(next);
                 }}
               />
+              </div>
             </div>
           </>
         ) : null}
@@ -498,21 +561,21 @@ function ListingMap({
     <section className="grid gap-2">
       <svg viewBox="0 0 640 420" role="img" className="h-80 w-full rounded-lg border border-line bg-olive-soft" aria-label={text.title}>
         {drawn.rings.map((ring, index) => (
-          <polygon key={index} points={ring.map(([lon, lat]) => point(lon, lat, view)).join(" ")} fill="#fffcf8" stroke="#3f4f3a" strokeWidth="1" />
+          <polygon key={index} points={ring.map(([lon, lat]) => point(lon, lat, view)).join(" ")} fill="#ffffff" stroke="#304f3c" strokeWidth="1" />
         ))}
         {dots.map((item) => {
           const [x, y] = point(item.lon, item.lat, view).split(",");
           if (clustered) {
             return (
               <g key={item.key}>
-                <circle cx={x} cy={y} r="14" fill="#3f4f3a" />
-                <text x={x} y={y} textAnchor="middle" dy="4" fill="#fffcf8" fontSize="12">
+                <circle cx={x} cy={y} r="14" fill="#304f3c" />
+                <text x={x} y={y} textAnchor="middle" dy="4" fill="#ffffff" fontSize="12">
                   {item.count}
                 </text>
               </g>
             );
           }
-          return <circle key={item.key} cx={x} cy={y} r="5" fill="#8a4b2f" />;
+          return <circle key={item.key} cx={x} cy={y} r="5" fill="#8b744d" />;
         })}
       </svg>
       <div className="flex flex-wrap gap-2">

@@ -15,6 +15,7 @@ type Item = {
   agreement_ref: string;
   version: number;
   history_count: number;
+  stage_events?: { id: string; from_status: string; to_status: string; reason: string; created_at: string }[];
   is_test: boolean;
   listing_id: string;
   property_id: string;
@@ -177,6 +178,16 @@ export default function DealsPage() {
             {item.amount_minor ? <p>{money(item.amount_minor, "ar")}</p> : null}
             {item.agreement_ref ? <p>مرجع الاتفاق: {item.agreement_ref}</p> : null}
             <p>سجل المراحل: {item.history_count}</p>
+            {(item.stage_events ?? []).length > 0 ? (
+              <ul className="grid gap-1">
+                {item.stage_events?.map((event) => (
+                  <li key={event.id}>
+                    {(statusLabel[event.from_status] ?? event.from_status) || "بداية"} ← {statusLabel[event.to_status] ?? event.to_status}
+                    {event.reason ? ` · ${event.reason}` : ""} · {new Date(event.created_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {can("update") && !terminal ? (
               <div className="grid gap-2 md:grid-cols-2">
                 <Label>

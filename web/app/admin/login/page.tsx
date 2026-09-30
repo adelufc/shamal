@@ -44,7 +44,7 @@ export default function LoginPage() {
     try {
       const { digits, letters } = verificationDigits(code);
       if (letters || digits.length !== 6) {
-        setError("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+        setError("أدخل رمز التحقق المكون من 6 أرقام من تطبيق المصادقة");
         return;
       }
       await api("/api/v1/auth/mfa", {
@@ -65,7 +65,7 @@ export default function LoginPage() {
         شمال العقاري
       </a>
       <h1 className="text-2xl font-semibold">دخول فريق العمل</h1>
-      <p className="text-sm text-ink/70">البريد ثم كلمة المرور، ثم رمز من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست هذا الرمز.</p>
+      <p className="text-sm text-muted">أدخل البريد وكلمة المرور، ثم أدخل رمز التحقق المكون من 6 أرقام من تطبيق المصادقة.</p>
       {challenge === "" ? (
         <form className="grid gap-3 rounded-lg border border-line bg-card p-4" onSubmit={submitPassword}>
           <Label>
@@ -91,7 +91,7 @@ export default function LoginPage() {
                 const next = verificationDigits(event.target.value);
                 if (next.letters) {
                   setCode("");
-                  setError("أدخل الرمز المكوّن من 6 أرقام لهذه اللحظة. القيمة الطويلة في الدليل ليست رمز الدخول.");
+                  setError("أدخل رمز التحقق المكون من 6 أرقام من تطبيق المصادقة");
                   return;
                 }
                 setError("");

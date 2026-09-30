@@ -19,7 +19,7 @@ const copy = {
     neighborhood: "الحي",
     choose: "اختر حياً منشوراً",
     timing: "الموعد المناسب",
-    specsAR: "المواصفات بالعربية",
+    specsAR: "المواصفات",
     specsEN: "Specifications in English",
     contact: "وسيلة التواصل",
     phone: "الهاتف",
@@ -47,7 +47,7 @@ const copy = {
     neighborhood: "Neighborhood",
     choose: "Choose a published neighborhood",
     timing: "Preferred timing",
-    specsAR: "المواصفات بالعربية",
+    specsAR: "المواصفات",
     specsEN: "Specifications in English",
     contact: "Contact method",
     phone: "Phone",
@@ -129,8 +129,8 @@ export function RequestForm({ locale }: { locale: Locale }) {
           transaction_type: transaction,
           neighborhood_id: neighborhood,
           timing_note: timing,
-          specs_ar: specsAR,
-          specs_en: specsEN,
+          specs_ar: locale === "en" ? "" : specsAR,
+          specs_en: locale === "en" ? specsEN : "",
           contact_method: contact,
           currency: "SAR",
           ...(budgetMinor === undefined ? {} : { budget_minor: budgetMinor }),
@@ -186,12 +186,13 @@ export function RequestForm({ locale }: { locale: Locale }) {
             <Input value={timing} onChange={(event) => setTiming(event.target.value)} />
           </Label>
           <Label>
-            {text.specsAR}
-            <TextArea value={specsAR} onChange={(event) => setSpecsAR(event.target.value)} />
-          </Label>
-          <Label>
-            {text.specsEN}
-            <TextArea dir="ltr" value={specsEN} onChange={(event) => setSpecsEN(event.target.value)} />
+            {locale === "en" ? text.specsEN : text.specsAR}
+            <TextArea
+              dir={locale === "en" ? "ltr" : "rtl"}
+              value={locale === "en" ? specsEN : specsAR}
+              onChange={(event) => (locale === "en" ? setSpecsEN(event.target.value) : setSpecsAR(event.target.value))}
+              required
+            />
           </Label>
           <Label>
             {text.contact}

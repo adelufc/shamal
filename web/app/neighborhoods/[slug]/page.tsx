@@ -1,66 +1,92 @@
 import { PublicFrame } from "@/components/public-frame";
-import { chrome, homePath, money, priceUnit } from "@/lib/chrome";
-import { loadNeighborhood } from "@/lib/public";
+import { ListingCard } from "@/components/listing-card";
+import { chrome, homePath } from "@/lib/chrome";
+import { loadNeighborhood, type NeighborhoodResult } from "@/lib/public";
 
 export const dynamic = "force-dynamic";
 
 export default async function NeighborhoodPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const copy = chrome.ar;
-  let payload;
-  try {
-    payload = await loadNeighborhood("ar", slug);
-  } catch {
-    return (
-      <PublicFrame locale="ar" path={`/neighborhoods/${slug}`}>
-        <p className="rounded-lg border border-line bg-card p-4">{copy.loadError}</p>
-      </PublicFrame>
-    );
-  }
+  const result = await loadNeighborhood("ar", slug);
   return (
     <PublicFrame locale="ar" path={`/neighborhoods/${slug}`}>
-      <NeighborhoodBody locale="ar" payload={payload} />
+      <NeighborhoodBody locale="ar" result={result} />
     </PublicFrame>
   );
 }
 
-export function NeighborhoodBody({
-  locale,
-  payload,
-}: {
-  locale: "ar" | "en";
-  payload: Awaited<ReturnType<typeof loadNeighborhood>>;
-}) {
+export function NeighborhoodBody({ locale, result }: { locale: "ar" | "en"; result: NeighborhoodResult }) {
   const copy = chrome[locale];
-  if (!payload) {
-    return <p className="rounded-lg border border-dashed border-line bg-card p-4">{copy.emptyNeighborhoods}</p>;
+  const searchHref = locale === "en" ? "/en/search" : "/search";
+  if (result.state === "error") {
+    return <p className="rounded-xl border border-line bg-card p-4">{copy.loadError}</p>;
   }
+  if (result.state === "missing") {
+    return (
+      <div className="grid gap-3 rounded-xl border border-dashed border-line bg-card p-4">
+        <p>{copy.missingNeighborhood}</p>
+        <a className="underline" href={searchHref}>
+          {copy.backToSearch}
+        </a>
+      </div>
+    );
+  }
+  if (result.state === "unpublished") {
+    return (
+      <div className="grid gap-3 rounded-xl border border-dashed border-line bg-card p-4">
+        <p>{copy.unpublishedNeighborhood}</p>
+        <a className="underline" href={searchHref}>
+          {copy.backToSearch}
+        </a>
+      </div>
+    );
+  }
+  const payload = result.payload;
   const text = payload.neighborhood.texts?.[0];
   const note = locale === "en" ? payload.neighborhood.boundary_note_en : payload.neighborhood.boundary_note_ar;
+  const services = [
+    payload.neighborhood.service_sale ? copy.sale : "",
+    payload.neighborhood.service_annual ? copy.annual : "",
+    payload.neighborhood.service_monthly ? copy.monthly : "",
+    payload.neighborhood.service_daily ? copy.daily : "",
+  ].filter(Boolean);
   return (
     <>
       <a href={homePath(locale)} className="text-sm">
         {copy.back}
       </a>
       <h1 className="text-3xl font-semibold">{text?.name}</h1>
-      <p className="text-sm text-ink/80">{text?.description}</p>
-      <p className="rounded-lg border border-line bg-olive-soft p-3 text-sm">{note || copy.boundary}</p>
-      <a className="text-sm underline" href={`${locale === "en" ? "/en/search" : "/search"}?neighborhood_id=${payload.neighborhood.id}`}>
+      <p className="text-sm text-muted">{text?.description}</p>
+      <p className="rounded-xl border border-line bg-olive-soft p-3 text-sm">{note || copy.boundary}</p>
+      {services.length > 0 ? (
+        <p className="text-sm">
+          {copy.services}: {services.join(" · ")}
+        </p>
+      ) : null}
+      <a className="text-sm underline" href={`${searchHref}?neighborhood_id=${payload.neighborhood.id}`}>
         {copy.mapLink}
       </a>
       <section className="grid gap-3">
         <h2 className="text-xl font-semibold">{copy.listings}</h2>
         {payload.listings.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-line bg-card p-4">{copy.emptyListings}</p>
+          <p className="rounded-xl border border-dashed border-line bg-card p-4">{copy.emptyListings}</p>
         ) : (
           <ul className="grid gap-3">
             {payload.listings.map((item) => (
-              <li key={item.id} className="rounded-lg border border-line bg-card p-4">
-                <h3 className="font-semibold">{item.texts?.[0]?.title}</h3>
-                <p className="mt-1 text-sm">{item.texts?.[0]?.description}</p>
-                <p className="mt-2 text-sm">
-                  {money(item.price_minor, locale)} {priceUnit(locale, item.price_unit, item.transaction_type)}
-                </p>
+              <li key={item.id}>
+                <ListingCard
+                  locale={locale}
+                  id={item.id}
+                  title={item.texts?.[0]?.title ?? ""}
+                  description={item.texts?.[0]?.description}
+                  neighborhood={text?.name}
+                  typeName={item.type_code}
+                  area={item.area_sqm}
+                  rooms={item.rooms}
+                  priceMinor={item.price_minor}
+                  unit={item.price_unit}
+                  transaction={item.transaction_type}
+                />
               </li>
             ))}
           </ul>

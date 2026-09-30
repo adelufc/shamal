@@ -37,7 +37,8 @@ const copy = {
     emptySearches: "لا يوجد بحث محفوظ.",
     muteSearch: "كتم هذا البحث",
     inbox: "الإشعارات",
-    empty: "لا توجد إشعارات ظاهرة.",
+    empty: "لا توجد إشعارات جديدة",
+    back: "العودة إلى لوحة العمل",
     mute: "كتم إشعارات التطبيق",
     unmute: "إعادة إشعارات التطبيق",
     notSent: "لم يُرسل إلى مزود",
@@ -59,7 +60,8 @@ const copy = {
     emptySearches: "There is no saved search.",
     muteSearch: "Mute this search",
     inbox: "Notices",
-    empty: "There are no visible notices.",
+    empty: "There are no new notices.",
+    back: "Back to the work desk",
     mute: "Mute in-app notices",
     unmute: "Turn in-app notices back on",
     notSent: "Not sent to a provider",
@@ -202,7 +204,12 @@ export function NotificationScreen({ locale }: { locale: Locale }) {
                 <Button type="submit">{text.save}</Button>
               </form>
             ) : (
-              <p className="text-sm text-ink/80">{text.staffNote}</p>
+              <div className="grid gap-2 text-sm">
+                <a className="underline" href="/admin">
+                  {text.back}
+                </a>
+                <p className="text-muted">{text.staffNote}</p>
+              </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">{clientAccount ? text.searches : text.inbox}</h2>

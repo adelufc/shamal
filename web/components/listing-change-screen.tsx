@@ -36,8 +36,12 @@ const copy = {
     owner: "المالك",
     save: "حفظ التغيير المعلّق",
     current: "المنشور الآن",
-    pending: "التغيير المعلّق",
+    pending: "طلب التغيير المعلّق",
     none: "لا تغيير معلّق.",
+    waiting: "هذا التغيير بانتظار المراجعة. لا يزال السعر المنشور كما هو",
+    replace: "الحفظ يستبدل طلب التغيير المعلّق ولا يغيّر السعر المنشور.",
+    publishedPrice: "السعر المنشور",
+    pendingPrice: "السعر في الطلب المعلّق",
     onlyUpdate: "تسجيل التغيير لمن لديه صلاحية تعديل العقار.",
     login: "هذه الشاشة لموظف يستطيع عرض العقار.",
     desk: "دخول المكتب",
@@ -55,8 +59,12 @@ const copy = {
     owner: "Owner",
     save: "Save the pending change",
     current: "Published now",
-    pending: "Pending change",
+    pending: "Pending change request",
     none: "There is no pending change.",
+    waiting: "This change is waiting for review. The published price is unchanged.",
+    replace: "Saving replaces the pending request and does not change the published price.",
+    publishedPrice: "Published price",
+    pendingPrice: "Price in the pending request",
     onlyUpdate: "Recording a change needs catalog update permission.",
     login: "This screen is for a staff member who can view the catalog.",
     desk: "Work desk sign-in",
@@ -104,11 +112,12 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
 
   useEffect(() => {
     if (!current) return;
-    setPrice(String(current.price_minor / 100));
-    setNeighborhood(current.neighborhood_id);
-    setLicense(current.license_ref);
-    setOwner(current.owner_user_id);
-  }, [current?.id]);
+    const pending = current.pending_changes;
+    setPrice(String((pending?.price_minor ?? current.price_minor) / 100));
+    setNeighborhood(pending?.neighborhood_id || current.neighborhood_id);
+    setLicense(pending?.license_ref || current.license_ref);
+    setOwner(pending?.owner_user_id || current.owner_user_id);
+  }, [current?.id, current?.version]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -183,13 +192,17 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
         <article className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
           <h2 className="font-semibold">{text.current}</h2>
           <p>
-            {money(current.price_minor, locale)} · {current.license_ref}
+            {text.publishedPrice}: {money(current.price_minor, locale)}
           </p>
           <h2 className="font-semibold">{text.pending}</h2>
-          {current.pending_changes ? (
-            <p>
-              {money(current.pending_changes.price_minor ?? 0, locale)} · {current.pending_changes.license_ref} · {current.pending_changes.owner_user_id}
-            </p>
+          {current.pending_changes?.price_minor ? (
+            <>
+              <p>
+                {text.pendingPrice}: {money(current.pending_changes.price_minor, locale)}
+              </p>
+              <p>{text.waiting}</p>
+              <p>{text.replace}</p>
+            </>
           ) : (
             <p>{text.none}</p>
           )}

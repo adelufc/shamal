@@ -16,6 +16,7 @@ type Dispute = {
   financial_complete: boolean;
   money_moved: boolean;
   refund_success: boolean;
+  stay_id?: string;
   execution_status: string;
   hold_amount_minor?: number;
   response_due_at: string;
@@ -119,7 +120,20 @@ export default function AdminDisputesPage() {
           </div>
           <p>{item.description}</p>
           <p>
-            {item.type} · {item.priority} · تحرك المال: {item.money_moved ? "نعم" : "لا"} · اكتمال مالي: {item.financial_complete ? "نعم" : "لا"} · نجاح الاسترداد: {item.refund_success ? "نعم" : "لا"}
+            {(
+              {
+                entry_failure: "تعذر دخول",
+                mismatch: "عدم تطابق",
+                cleanliness: "نظافة",
+                unit_issue: "حالة الوحدة",
+                service: "خدمة",
+                compensation: "تعويض",
+                refund: "استرداد",
+              } as Record<string, string>
+            )[item.type] ?? item.type}{" "}
+            · {item.priority === "critical" ? "حرج" : item.priority === "normal" ? "عادي" : item.priority}
+            {item.stay_id ? ` · حجز ${item.stay_id.slice(0, 8)}` : ""}
+            · تحرك المال: {item.money_moved ? "نعم" : "لا"} · اكتمال مالي: {item.financial_complete ? "نعم" : "لا"} · نجاح الاسترداد: {item.refund_success ? "نعم" : "لا"}
           </p>
           {item.hold_amount_minor ? <p>مبلغ مجمد في سجل التسوية فقط: {money(item.hold_amount_minor, "ar")}</p> : null}
           <Label>

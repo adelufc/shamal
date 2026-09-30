@@ -266,7 +266,7 @@ export function OrgScreen({ locale, framed = false }: { locale: Locale; framed?:
               <ul className="grid gap-1 text-sm">
                 {attached.map((entry) => (
                   <li key={entry.id}>
-                    {entry.domain} · {entry.action} · {entry.effect} · {text.scopes[entry.scope_kind as keyof typeof text.scopes] ?? entry.scope_kind}
+                    {text.scopes[entry.scope_kind as keyof typeof text.scopes] ?? entry.scope_kind} · {entry.action === "view" ? (locale === "en" ? "View" : "عرض") : entry.action} · {entry.effect === "allow" ? (locale === "en" ? "Allow" : "سماح") : entry.effect === "deny" ? (locale === "en" ? "Deny" : "منع") : entry.effect}
                   </li>
                 ))}
               </ul>

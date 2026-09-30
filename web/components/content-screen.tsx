@@ -199,20 +199,20 @@ export function ContentScreen({ locale, framed = false }: { locale: Locale; fram
           <p className="text-sm text-ink/70">{text.login}</p>
         </div>
       ) : null}
-      <section className="grid gap-2 rounded-lg border border-line bg-card p-4">
-        <h2 className="font-semibold">{text.places}</h2>
+      <details className="grid gap-2 rounded-lg border border-line bg-card p-4">
+        <summary className="min-h-11 font-semibold">{text.places}</summary>
         <p className="text-sm text-ink/70">{text.placesLead}</p>
         <ul className="grid gap-1 text-sm">
           {places.map((place) => (
             <li key={place.id}>
-              {placeName(place)} · {place.status}{" "}
-              <a className="underline" href="/admin/neighborhoods">
+              {placeName(place)} · {text.status[place.status as keyof typeof text.status] ?? place.status}{" "}
+              <a className="underline" href={`/admin/neighborhoods#${place.id}`}>
                 {text.openPlace}
               </a>
             </li>
           ))}
         </ul>
-      </section>
+      </details>
       {pages.length === 0 && !loading ? <p className="text-sm">{text.empty}</p> : null}
       <ul className="grid gap-2">
         {pages.map((page) => (

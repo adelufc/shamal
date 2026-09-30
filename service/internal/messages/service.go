@@ -29,6 +29,7 @@ type Item struct {
 	Received        int        `json:"received"`
 	AssigneeID      string     `json:"assignee_id,omitempty"`
 	RecipientLocale string     `json:"recipient_locale"`
+	ClientName      string     `json:"client_name"`
 	FirstHumanReply *time.Time `json:"first_human_reply_at,omitempty"`
 	ProviderAdopted bool       `json:"provider_adopted"`
 	DeliveryStatus  string     `json:"delivery_status"`
@@ -199,7 +200,14 @@ func (s Service) Post(ctx context.Context, in PostInput) (Message, error) {
 func (s Service) Inbox(ctx context.Context, actor string, staff bool) ([]Item, error) {
 	query := `
 		SELECT c.id::text, c.subject_kind, c.subject_id::text, c.review_status,
-		       COALESCE(c.assignee_id::text,''), c.recipient_locale, c.first_human_reply_at,
+		       COALESCE(c.assignee_id::text,''), c.recipient_locale,
+		       COALESCE((
+		         SELECT u.display_name FROM messages.participants p
+		         JOIN identity.users u ON u.id = p.user_id
+		         WHERE p.conversation_id = c.id AND p.role = 'client'
+		         LIMIT 1
+		       ), ''),
+		       c.first_human_reply_at,
 		       (SELECT count(*) FROM messages.messages m
 		         WHERE m.conversation_id = c.id AND m.kind <> 'internal_note' AND m.hidden_at IS NULL),
 		       (SELECT count(*) FROM messages.messages m
@@ -228,7 +236,7 @@ func (s Service) Inbox(ctx context.Context, actor string, staff bool) ([]Item, e
 	out := make([]Item, 0)
 	for rows.Next() {
 		var item Item
-		if err := rows.Scan(&item.ID, &item.SubjectKind, &item.SubjectID, &item.ReviewStatus, &item.AssigneeID, &item.RecipientLocale, &item.FirstHumanReply, &item.Received, &item.Unread); err != nil {
+		if err := rows.Scan(&item.ID, &item.SubjectKind, &item.SubjectID, &item.ReviewStatus, &item.AssigneeID, &item.RecipientLocale, &item.ClientName, &item.FirstHumanReply, &item.Received, &item.Unread); err != nil {
 			return nil, err
 		}
 		item.ProviderAdopted = false

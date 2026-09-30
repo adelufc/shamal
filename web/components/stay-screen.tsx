@@ -49,6 +49,9 @@ const copy = {
     title: "تسعير الإقامة وتثبيتها",
     lead: "اختيار الفترة لا يحجز الوحدة. التثبيت مؤقت من وقت الخادم، والتأكيد هنا يثبت الإشغال دون تحصيل.",
     missing: "اختر إعلاناً يومياً أو شهرياً من البحث.",
+    unit: "الوحدة المختارة",
+    approximate: "موقع تقريبي داخل الحي",
+    noPhoto: "لا توجد صورة",
     arrival: "الوصول",
     departure: "المغادرة",
     guests: "الضيوف",
@@ -79,6 +82,9 @@ const copy = {
     title: "Price and hold a stay",
     lead: "Choosing dates does not book the unit. The hold is temporary from the server clock, and confirmation here records occupancy without collecting money.",
     missing: "Choose a daily or monthly listing from search.",
+    unit: "Selected unit",
+    approximate: "Approximate location inside the neighborhood",
+    noPhoto: "No photo",
     arrival: "Arrival",
     departure: "Departure",
     guests: "Guests",
@@ -122,12 +128,33 @@ export function StayScreen({ locale }: { locale: Locale }) {
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<unknown>(null);
   const [holdKey, setHoldKey] = useState("");
+  const [unit, setUnit] = useState<{ title: string; neighborhood_name: string; price_minor: number; price_unit: string; transaction_type: string } | null>(null);
   const base = locale === "en" ? "/en/stay" : "/stay";
   const accountHref = locale === "en" ? "/en/account" : "/account";
 
   useEffect(() => {
     setHoldKey(crypto.randomUUID());
   }, []);
+
+  useEffect(() => {
+    if (!listing) {
+      setUnit(null);
+      return;
+    }
+    let stop = false;
+    api<{ title: string; neighborhood_name: string; price_minor: number; price_unit: string; transaction_type: string }>(
+      `/api/v1/public/listings/${listing}?locale=${locale}`,
+    )
+      .then((body) => {
+        if (!stop) setUnit(body);
+      })
+      .catch(() => {
+        if (!stop) setUnit(null);
+      });
+    return () => {
+      stop = true;
+    };
+  }, [listing, locale]);
 
   useEffect(() => {
     setArrival(params.get("arrival") ?? "");
@@ -245,6 +272,22 @@ export function StayScreen({ locale }: { locale: Locale }) {
         <p className="text-sm text-ink/80">{text.lead}</p>
         <p className="rounded-lg border border-line bg-olive-soft p-3 text-sm">{text.sample}</p>
         {!listing ? <p className="rounded-lg border border-dashed border-line bg-card p-4 text-sm">{text.missing}</p> : null}
+        {listing ? (
+          <article className="grid gap-2 overflow-hidden rounded-xl border border-line bg-card">
+            <div className="flex aspect-[4/3] max-h-48 items-center justify-center bg-olive-soft text-sm text-muted">{text.noPhoto}</div>
+            <div className="grid gap-1 p-4">
+              <h2 className="font-semibold">{text.unit}</h2>
+              <p>{unit?.title || listing}</p>
+              {unit?.neighborhood_name ? <p className="text-sm text-muted">{unit.neighborhood_name}</p> : null}
+              <p className="text-sm text-muted">{text.approximate}</p>
+              {unit ? (
+                <p>
+                  {money(unit.price_minor, locale)} {unit.price_unit}
+                </p>
+              ) : null}
+            </div>
+          </article>
+        ) : null}
         <form className="grid gap-3 rounded-lg border border-line bg-card p-4 md:grid-cols-3" onSubmit={submit}>
           <Label>
             {text.arrival}

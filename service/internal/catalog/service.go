@@ -338,9 +338,72 @@ func (s Service) PublicList(ctx context.Context, locale, neighborhoodID, transac
 		}
 		item.Texts = kept
 		item.PreciseLon, item.PreciseLat = nil, nil
+		item.Pending = nil
+		item.LicenseRef = ""
+		item.LicenseExceptionRef = ""
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+type PublicView struct {
+	ID               string  `json:"id"`
+	NeighborhoodID   string  `json:"neighborhood_id"`
+	NeighborhoodName string  `json:"neighborhood_name"`
+	TransactionType  string  `json:"transaction_type"`
+	PriceMinor       int64   `json:"price_minor"`
+	PriceUnit        string  `json:"price_unit"`
+	Currency         string  `json:"currency"`
+	Title            string  `json:"title"`
+	Description      string  `json:"description"`
+	AreaSqm          float64 `json:"area_sqm"`
+	Rooms            *int    `json:"rooms"`
+	TypeCode         string  `json:"type_code"`
+	TypeName         string  `json:"type_name"`
+	OwnerVerified    bool    `json:"owner_verified"`
+	Approximate      bool    `json:"approximate_location"`
+}
+
+func (s Service) PublicOne(ctx context.Context, locale, id string) (PublicView, error) {
+	var item PublicView
+	err := s.Pool.QueryRow(ctx, `
+		SELECT l.id::text, l.neighborhood_id::text, COALESCE(nt.name, ''), l.transaction_type,
+		       COALESCE(l.price_minor, 0), l.price_unit, l.currency,
+		       COALESCE(t.title, ''), COALESCE(t.description, ''),
+		       COALESCE(p.area_sqm, 0), u.rooms, p.type_code,
+		       CASE WHEN $1 = 'en' THEN pt.name_en ELSE pt.name_ar END,
+		       EXISTS (
+		         SELECT 1 FROM identity.contact_methods c
+		         WHERE c.user_id = p.owner_user_id AND c.verified_at IS NOT NULL
+		       )
+		FROM catalog.listings l
+		JOIN catalog.properties p ON p.id = l.property_id
+		JOIN catalog.units u ON u.id = l.unit_id
+		JOIN catalog.property_types pt ON pt.code = p.type_code
+		LEFT JOIN catalog.listing_translations t ON t.listing_id = l.id AND t.locale = $1
+		LEFT JOIN geography.translations nt ON nt.neighborhood_id = l.neighborhood_id AND nt.locale = $1
+		WHERE l.id = $2::uuid AND l.status = 'published'
+	`, locale, id).Scan(
+		&item.ID, &item.NeighborhoodID, &item.NeighborhoodName, &item.TransactionType,
+		&item.PriceMinor, &item.PriceUnit, &item.Currency, &item.Title, &item.Description,
+		&item.AreaSqm, &item.Rooms, &item.TypeCode, &item.TypeName, &item.OwnerVerified,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var status string
+		statusErr := s.Pool.QueryRow(ctx, `SELECT status FROM catalog.listings WHERE id = $1::uuid`, id).Scan(&status)
+		if errors.Is(statusErr, pgx.ErrNoRows) {
+			return PublicView{}, platform.E("not_found", 404)
+		}
+		if statusErr != nil {
+			return PublicView{}, statusErr
+		}
+		return PublicView{}, platform.E("unpublished", 404)
+	}
+	if err != nil {
+		return PublicView{}, err
+	}
+	item.Approximate = true
+	return item, nil
 }
 
 func (s Service) CountPublished(ctx context.Context) (int, map[string]int, error) {

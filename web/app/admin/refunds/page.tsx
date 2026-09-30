@@ -81,7 +81,9 @@ export default function RefundsPage() {
             <span>{statusLabel[item.status] ?? item.status}</span>
           </div>
           <p>{item.reason}</p>
+          <p>طلب {item.id.slice(0, 8)} · حجز {item.stay_id.slice(0, 8)} · {item.currency}</p>
           <p>الموافقات: {item.approvals} · نجاح الاسترداد: {item.success ? "نعم" : "لا"}</p>
+          {item.status === "approved" ? <p>اعتُمد الطلب ولم يكتمل رد المبلغ بعد</p> : null}
           {can("approve") && item.status === "under_review" ? (
             <Button type="button" onClick={() => void approve(item)}>
               موافقة

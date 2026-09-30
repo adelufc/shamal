@@ -540,6 +540,23 @@ func (a *API) publicNeighborhood(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"neighborhood": item, "listings": listings})
 }
 
+func (a *API) publicListing(w http.ResponseWriter, r *http.Request) {
+	locale := r.URL.Query().Get("locale")
+	if locale != "en" {
+		locale = "ar"
+	}
+	if _, err := uuid.Parse(r.PathValue("id")); err != nil {
+		writeErr(w, r, platform.E("not_found", 404))
+		return
+	}
+	item, err := a.Cat.PublicOne(r.Context(), locale, r.PathValue("id"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+
 func (a *API) upload(w http.ResponseWriter, r *http.Request) {
 	user, err := a.authorize(r, "files", permissions.ActionCreate, &permissions.Resource{CompanyID: seed.CompanyID, CreatedBy: "system"})
 	if err != nil {

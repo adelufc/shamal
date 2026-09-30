@@ -16,6 +16,7 @@ type Rule = {
   effect: string;
   layer: string;
   scope_kind: string;
+  starts_at?: string | null;
   ends_at?: string | null;
   temporary: boolean;
 };
@@ -472,6 +473,40 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
   );
 }
 
+function labelOf(value: string) {
+  const names: Record<string, string> = {
+    geography: "الأحياء",
+    catalog: "العقارات",
+    organization: "الهيكل",
+    permissions: "الصلاحيات",
+    files: "الملفات",
+    identity: "الهوية",
+    clients: "العملاء",
+    visits: "الزيارات",
+    deals: "الصفقات",
+    finance: "المال",
+    messages: "الرسائل",
+    disputes: "النزاعات",
+    reports: "التقارير",
+    view: "عرض",
+    create: "إنشاء",
+    update: "تعديل",
+    approve: "اعتماد",
+    publish: "نشر",
+    archive: "أرشفة",
+    export: "تصدير",
+    allow: "سماح",
+    deny: "منع",
+    company: "الشركة",
+    branch: "الفرع",
+    department: "الإدارة",
+    team: "الفريق",
+    own: "السجل",
+    assigned: "المسند",
+  };
+  return names[value] ?? value;
+}
+
 function RuleList({ title, items, empty }: { title: string; items: Rule[]; empty: string }) {
   return (
     <section className="rounded-lg border border-line bg-card p-3">
@@ -480,8 +515,9 @@ function RuleList({ title, items, empty }: { title: string; items: Rule[]; empty
       <ul className="grid gap-1 text-sm">
         {items.map((item) => (
           <li key={`${title}-${item.id}-${item.layer}`}>
-            {item.domain} · {item.action} · {item.effect} · {item.scope_kind}
-            {item.ends_at ? ` · ${item.ends_at}` : ""}
+            {labelOf(item.domain)} · {labelOf(item.action)} · {labelOf(item.effect)} · {labelOf(item.scope_kind)}
+            {item.starts_at ? ` · البداية ${item.starts_at}` : ""}
+            {item.ends_at ? ` · النهاية ${item.ends_at}${new Date(item.ends_at).getTime() < Date.now() ? " · منتهٍ" : " · سارٍ"}` : " · بلا نهاية"}
           </li>
         ))}
       </ul>

@@ -36,6 +36,9 @@ type SearchHit struct {
 	Title           string  `json:"title"`
 	Description     string  `json:"description"`
 	AreaSqm         float64 `json:"area_sqm"`
+	Rooms           *int    `json:"rooms"`
+	TypeCode        string  `json:"type_code"`
+	OwnerVerified   bool    `json:"owner_verified"`
 }
 
 type SearchMarker struct {

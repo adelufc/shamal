@@ -197,6 +197,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/disputes/{id}/notice", a.staffDisputeNotice)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/evidence", a.staffDisputeEvidence)
 	mux.HandleFunc("GET /api/v1/public/neighborhoods/{slug}", a.publicNeighborhood)
+	mux.HandleFunc("GET /api/v1/public/listings/{id}", a.publicListing)
 	mux.HandleFunc("POST /api/v1/public/requests", a.publicRequest)
 	mux.HandleFunc("GET /api/v1/account", a.account)
 	mux.HandleFunc("POST /api/v1/account/visits", a.accountVisit)

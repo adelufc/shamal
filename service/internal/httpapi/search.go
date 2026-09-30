@@ -138,7 +138,8 @@ func (a *API) publicSearch(w http.ResponseWriter, r *http.Request) {
 		},
 		"listings": result.Listings, "markers": markers, "clusters": result.Clusters,
 		"marker_mode": mode, "marker_cap": catalog.MarkerCap,
-		"total": result.Total, "page": page, "page_size": size,
+		"map_scope": "all_matches",
+		"total":     result.Total, "page": page, "page_size": size,
 		"places": publicPlaces,
 	})
 }

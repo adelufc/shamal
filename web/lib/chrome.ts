@@ -25,11 +25,21 @@ export const chrome = {
     monthly: "إيجار شهري",
     daily: "إيجار يومي",
     listings: "الإعلانات المنشورة",
-    emptyListings: "لا توجد إعلانات منشورة في هذا العرض.",
+    emptyListings: "لا توجد إعلانات في هذا الحي حاليًا",
     emptyNeighborhoods: "لا توجد أحياء منشورة.",
+    missingNeighborhood: "هذا الرابط لا يطابق حياً منشوراً.",
+    unpublishedNeighborhood: "هذا الحي غير منشور.",
+    backToSearch: "الرجوع إلى البحث",
+    details: "عرض التفاصيل",
+    noPhoto: "لا توجد صورة",
+    approximate: "موقع تقريبي داخل الحي",
+    verifiedOwner: "المالك موثّق",
+    testEnv: "بيئة اختبار",
+    rooms: "غرف",
+    area: "م²",
     boundary: "حدود الأحياء المعروضة تقريبية لغرض الاختبار، وليست حداً رسمياً معتمداً.",
     priceNote: "السعر يدخله منشئ الإعلان بالريال. المنصة لا تفترض عمولة أو رسوماً.",
-    loadError: "تعذر تحميل البيانات من الخدمة.",
+    loadError: "تعذر تحميل البيانات الآن. حاول مرة أخرى",
     retry: "إعادة المحاولة",
     loading: "جارٍ التحميل…",
     listingCount: "إعلان منشور",
@@ -60,11 +70,21 @@ export const chrome = {
     monthly: "Monthly rent",
     daily: "Daily rent",
     listings: "Published listings",
-    emptyListings: "There are no published listings in this view.",
+    emptyListings: "There are no listings in this neighborhood right now.",
     emptyNeighborhoods: "There are no published neighborhoods.",
+    missingNeighborhood: "This link does not match a published neighborhood.",
+    unpublishedNeighborhood: "This neighborhood is not published.",
+    backToSearch: "Back to search",
+    details: "View details",
+    noPhoto: "No photo",
+    approximate: "Approximate location inside the neighborhood",
+    verifiedOwner: "Verified owner",
+    testEnv: "Test environment",
+    rooms: "rooms",
+    area: "m²",
     boundary: "The neighborhood boundaries shown here are approximate test masks, not an adopted official boundary.",
     priceNote: "The price is entered by the person who created the listing, in SAR. The platform does not assume a commission or a fee.",
-    loadError: "The service data could not be loaded.",
+    loadError: "The data could not be loaded just now. Try again.",
     retry: "Try again",
     loading: "Loading…",
     listingCount: "published listings",
@@ -92,6 +112,10 @@ export function homePath(locale: Locale): string {
 export function neighborhoodPath(locale: Locale, slug: string): string {
   const encoded = encodeURIComponent(slug);
   return locale === "en" ? `/en/neighborhoods/${encoded}` : `/neighborhoods/${encoded}`;
+}
+
+export function listingPath(locale: Locale, id: string): string {
+  return locale === "en" ? `/en/listings/${id}` : `/listings/${id}`;
 }
 
 export function contentPath(locale: Locale, slug: string): string {

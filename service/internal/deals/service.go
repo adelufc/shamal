@@ -13,30 +13,40 @@ import (
 )
 
 type Deal struct {
-	ID               string     `json:"id"`
-	CompanyID        string     `json:"company_id"`
-	BranchID         string     `json:"branch_id"`
-	RequestID        string     `json:"request_id"`
-	ProfileID        string     `json:"profile_id"`
-	ListingID        string     `json:"listing_id"`
-	PropertyID       string     `json:"property_id"`
-	NeighborhoodID   string     `json:"neighborhood_id"`
-	TransactionType  string     `json:"transaction_type"`
-	BrokerUserID     string     `json:"broker_user_id"`
-	OwnerUserID      string     `json:"owner_user_id"`
-	Status           string     `json:"status"`
-	AmountMinor      *int64     `json:"amount_minor,omitempty"`
-	Currency         string     `json:"currency"`
-	AgreementRef     string     `json:"agreement_ref"`
-	CloseDate        *time.Time `json:"close_date,omitempty"`
-	CloseRequestedBy string     `json:"close_requested_by"`
-	LossReason       string     `json:"loss_reason,omitempty"`
-	Test             bool       `json:"is_test"`
-	Version          int        `json:"version"`
-	CreatedBy        string     `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	DisplayName      string     `json:"display_name"`
-	History          int        `json:"history_count"`
+	ID               string       `json:"id"`
+	CompanyID        string       `json:"company_id"`
+	BranchID         string       `json:"branch_id"`
+	RequestID        string       `json:"request_id"`
+	ProfileID        string       `json:"profile_id"`
+	ListingID        string       `json:"listing_id"`
+	PropertyID       string       `json:"property_id"`
+	NeighborhoodID   string       `json:"neighborhood_id"`
+	TransactionType  string       `json:"transaction_type"`
+	BrokerUserID     string       `json:"broker_user_id"`
+	OwnerUserID      string       `json:"owner_user_id"`
+	Status           string       `json:"status"`
+	AmountMinor      *int64       `json:"amount_minor,omitempty"`
+	Currency         string       `json:"currency"`
+	AgreementRef     string       `json:"agreement_ref"`
+	CloseDate        *time.Time   `json:"close_date,omitempty"`
+	CloseRequestedBy string       `json:"close_requested_by"`
+	LossReason       string       `json:"loss_reason,omitempty"`
+	Test             bool         `json:"is_test"`
+	Version          int          `json:"version"`
+	CreatedBy        string       `json:"created_by"`
+	CreatedAt        time.Time    `json:"created_at"`
+	DisplayName      string       `json:"display_name"`
+	History          int          `json:"history_count"`
+	Events           []StageEvent `json:"stage_events"`
+}
+
+type StageEvent struct {
+	ID         string    `json:"id"`
+	FromStatus string    `json:"from_status"`
+	ToStatus   string    `json:"to_status"`
+	Reason     string    `json:"reason"`
+	ActorID    string    `json:"actor_id"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type Service struct {
@@ -82,7 +92,31 @@ func (s Service) Get(ctx context.Context, id string) (Deal, error) {
 	}
 	item.AmountMinor = amount
 	item.CloseDate = closeDate
+	item.Events, err = s.stageEvents(ctx, item.ID)
+	if err != nil {
+		return Deal{}, err
+	}
 	return item, nil
+}
+
+func (s Service) stageEvents(ctx context.Context, id string) ([]StageEvent, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id::text, from_status, to_status, reason, COALESCE(actor_id::text, ''), created_at
+		FROM deals.stage_events WHERE deal_id = $1 ORDER BY created_at, id
+	`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]StageEvent, 0)
+	for rows.Next() {
+		var item StageEvent
+		if err := rows.Scan(&item.ID, &item.FromStatus, &item.ToStatus, &item.Reason, &item.ActorID, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }
 
 func (s Service) List(ctx context.Context, companyID, status string, page, size int) ([]Deal, int, error) {

@@ -8,6 +8,9 @@ import { Input, Label, TextArea } from "@/components/ui/input";
 type Neighborhood = { id: string; status: string; texts: { locale: string; name: string }[] };
 type PropertyType = { code: string; name_ar: string; requires_rooms: boolean };
 type Listing = { id: string; status: string; version: number; issues: string[] };
+type Staff = { id: string; display_name: string; email: string };
+
+const placeStatus: Record<string, string> = { draft: "مسودة", published: "منشور", in_review: "قيد المراجعة", suspended: "موقوف" };
 
 export default function CatalogPage() {
   const me = useSession();
@@ -36,6 +39,8 @@ export default function CatalogPage() {
   const [descriptionEN, setDescriptionEN] = useState("");
   const [owner, setOwner] = useState("");
   const [broker, setBroker] = useState("");
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [step, setStep] = useState(1);
 
   const can = (action: string) => (me?.actions.catalog ?? []).includes(action);
 
@@ -45,11 +50,13 @@ export default function CatalogPage() {
     Promise.all([
       api<{ items: Neighborhood[] }>("/api/v1/geo/neighborhoods?page_size=100"),
       api<{ items: PropertyType[] }>("/api/v1/catalog/property-types"),
+      api<{ staff: Staff[] }>("/api/v1/org/structure"),
     ])
-      .then(([places, kinds]) => {
+      .then(([places, kinds, structure]) => {
         if (stop) return;
         setNeighborhoods(places.items);
         setTypes(kinds.items);
+        setStaff(structure.staff);
         setState("ready");
       })
       .catch((caught) => {
@@ -138,7 +145,8 @@ export default function CatalogPage() {
   return (
     <section className="grid gap-4">
       <h1 className="text-2xl font-semibold">عقار ووحدة وإعلان</h1>
-      <p className="text-sm text-ink/75">العقار والوحدة والإعلان سجلات منفصلة. لا يُنشر الإعلان إذا كان الحي غير منشور، أو الخدمة متوقفة، أو النقطة خارج الحد.</p>
+      <p className="text-sm text-muted">العقار ثم الوحدة ثم الإعلان. لا يُحفظ سجل قبل الضغط الأخير. لا يُنشر إعلان في حي غير مؤهل.</p>
+      <p className="text-sm">الخطوة {step} من 3</p>
       {state === "loading" ? <p className="text-sm">جارٍ تحميل الأنواع والأحياء…</p> : null}
       {state === "error" ? <Failure error={error} /> : null}
       {state === "ready" && neighborhoods.length === 0 ? <p className="text-sm">لا توجد أحياء لربط العقار بها.</p> : null}
@@ -150,7 +158,7 @@ export default function CatalogPage() {
               <option value="">اختر حياً</option>
               {neighborhoods.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.texts?.find((text) => text.locale === "ar")?.name} — {item.status}
+                  {item.texts?.find((text) => text.locale === "ar")?.name} — {placeStatus[item.status] ?? item.status}
                 </option>
               ))}
             </select>
@@ -192,16 +200,19 @@ export default function CatalogPage() {
               <Input value={addressEN} onChange={(event) => setAddressEN(event.target.value)} />
             </Label>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Label>
-              خط الطول
-              <Input value={lon} onChange={(event) => setLon(event.target.value)} inputMode="decimal" />
-            </Label>
-            <Label>
-              خط العرض
-              <Input value={lat} onChange={(event) => setLat(event.target.value)} inputMode="decimal" />
-            </Label>
-          </div>
+          <details className="rounded-lg bg-olive-soft p-3">
+            <summary className="min-h-11 cursor-pointer">إحداثيات متقدمة، والموقع العام يبقى تقريبياً داخل الحي</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Label>
+                خط الطول
+                <Input value={lon} onChange={(event) => setLon(event.target.value)} inputMode="decimal" />
+              </Label>
+              <Label>
+                خط العرض
+                <Input value={lat} onChange={(event) => setLat(event.target.value)} inputMode="decimal" />
+              </Label>
+            </div>
+          </details>
           <Label>
             نوع التعامل
             <select className="rounded-md border border-line bg-card px-3 py-2 text-sm" value={transaction} onChange={(event) => setTransaction(event.target.value)}>
@@ -221,12 +232,26 @@ export default function CatalogPage() {
           </Label>
           <div className="grid gap-3 sm:grid-cols-2">
             <Label>
-              معرف المالك
-              <Input value={owner} onChange={(event) => setOwner(event.target.value)} />
+              المالك
+              <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={owner} onChange={(event) => setOwner(event.target.value)}>
+                <option value="">بدون مالك محدد</option>
+                {staff.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.display_name} · {person.email}
+                  </option>
+                ))}
+              </select>
             </Label>
             <Label>
-              معرف الوسيط
-              <Input value={broker} onChange={(event) => setBroker(event.target.value)} />
+              الوسيط
+              <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={broker} onChange={(event) => setBroker(event.target.value)}>
+                <option value="">بدون وسيط محدد</option>
+                {staff.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.display_name} · {person.email}
+                  </option>
+                ))}
+              </select>
             </Label>
           </div>
           {me ? (
@@ -255,7 +280,20 @@ export default function CatalogPage() {
             English description
             <TextArea value={descriptionEN} onChange={(event) => setDescriptionEN(event.target.value)} required />
           </Label>
-          <Button disabled={pending}>{pending ? "جارٍ الحفظ…" : "حفظ المسودة"}</Button>
+          <div className="flex flex-wrap gap-2">
+            {step > 1 ? (
+              <Button type="button" variant="ghost" onClick={() => setStep(step - 1)}>
+                السابق
+              </Button>
+            ) : null}
+            {step < 3 ? (
+              <Button type="button" onClick={() => setStep(step + 1)}>
+                التالي
+              </Button>
+            ) : (
+              <Button disabled={pending}>{pending ? "جارٍ حفظ المسودة" : "حفظ المسودة"}</Button>
+            )}
+          </div>
         </form>
       ) : null}
       {error && state !== "error" ? <Failure error={error} /> : null}

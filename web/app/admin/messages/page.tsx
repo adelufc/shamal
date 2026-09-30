@@ -5,7 +5,9 @@ import { Failure, api, useSession } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
-type Item = { id: string; subject_kind: string; unread: number; received: number; recipient_locale: string; first_human_reply_at?: string };
+type Item = { id: string; subject_kind: string; subject_id: string; client_name: string; assignee_id?: string; unread: number; received: number; recipient_locale: string; first_human_reply_at?: string };
+
+const kinds: Record<string, string> = { listing: "إعلان", visit: "زيارة", booking: "حجز", deal: "صفقة", dispute: "نزاع" };
 type Message = { id: string; kind: string; body: string; hidden: boolean; delivery_status: string };
 type Canned = { id: string; body: string };
 
@@ -112,8 +114,9 @@ export default function AdminMessagesPage() {
       {items.length === 0 ? <p className="text-sm">لا توجد محادثات.</p> : null}
       {items.map((item) => (
         <button key={item.id} className="rounded-lg border border-line bg-card p-3 text-start text-sm" type="button" onClick={() => void show(item)}>
-          {item.subject_kind} · غير مقروء {item.unread} · مستلم {item.received} · {item.recipient_locale}
-          {item.first_human_reply_at ? " · تم أول رد بشري" : " · بلا رد بشري بعد"}
+          {item.client_name || "عميل"} · {kinds[item.subject_kind] ?? item.subject_kind} · {item.subject_id.slice(0, 8)} · غير مقروء {item.unread}
+          {item.assignee_id ? " · مسند" : " · غير مسند"}
+          {item.first_human_reply_at ? " · تم أول رد بشري" : " · بلا رد"}
         </button>
       ))}
       {open ? (

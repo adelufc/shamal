@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Failure, api, useSession } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,28 +53,37 @@ export default function RequestsPage() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<unknown>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState("");
+  const [total, setTotal] = useState(0);
+  const params = useSearchParams();
+  const [q, setQ] = useState(params.get("q") ?? "");
+  const [unassigned, setUnassigned] = useState(params.get("unassigned") === "1");
+  const [page, setPage] = useState(Number(params.get("page") || "1") || 1);
   const can = (action: string) => (me?.actions.clients ?? []).includes(action);
   const canDeal = (me?.actions.deals ?? []).includes("create");
 
-  async function load() {
-    const body = await api<{ items: Item[] }>("/api/v1/clients/requests?page_size=100");
+  async function load(nextPage = page, nextQuery = q, onlyOpen = unassigned) {
+    const query = new URLSearchParams({ page_size: "25", page: String(nextPage) });
+    if (nextQuery.trim()) query.set("q", nextQuery.trim());
+    if (onlyOpen) query.set("unassigned", "1");
+    const body = await api<{ items: Item[]; total: number }>(`/api/v1/clients/requests?${query}`);
     setItems(body.items);
+    setTotal(body.total);
     setState("ready");
   }
 
   useEffect(() => {
     if (!me) return;
     let stop = false;
-    load()
-      .catch((caught) => {
-        if (stop) return;
-        setError(caught);
-        setState("error");
-      });
+    load(page, q, unassigned).catch((caught) => {
+      if (stop) return;
+      setError(caught);
+      setState("error");
+    });
     return () => {
       stop = true;
     };
-  }, [me]);
+  }, [me, page, unassigned]);
 
   async function move(item: Item, to: string) {
     setError(null);
@@ -122,7 +132,26 @@ export default function RequestsPage() {
   return (
     <section className="grid gap-4">
       <h1 className="text-2xl font-semibold">طلبات العملاء</h1>
-      <p className="text-sm text-ink/80">الطلب بلا مسؤول يبقى في صف الإدارة. غير المؤهل والمغلق يحتاجان سبباً. التحويل إلى صفقة يكون من مرحلة الاتفاق.</p>
+      <p className="text-sm text-muted">الطلب بلا مسؤول يبقى في صف الإدارة. فتح التفاصيل لا يغيّر المرحلة. غير المؤهل والمغلق يحتاجان سبباً.</p>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          setPage(1);
+          void load(1, q, unassigned);
+        }}
+      >
+        <label className="grid gap-2 text-sm">
+          بحث بالاسم أو البريد أو الرقم
+          <Input value={q} onChange={(event) => setQ(event.target.value)} />
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={unassigned} onChange={(event) => setUnassigned(event.target.checked)} />
+          غير المسند
+        </label>
+        <Button type="submit">بحث</Button>
+      </form>
+      <p className="text-sm">{total} طلب</p>
       {error ? <Failure error={error} /> : null}
       {items.length === 0 ? <p className="text-sm">لا توجد طلبات.</p> : null}
       {items.map((item) => (
@@ -132,13 +161,29 @@ export default function RequestsPage() {
             <span>{stageLabel[item.stage] ?? item.stage}</span>
           </div>
           <p>{item.email}</p>
-          <p>{item.assignee_id ? "مُسند" : "صف الإدارة"}</p>
+          <p>{item.assignee_id ? "مُسند" : "غير مسند، ويبقى في صف الإدارة"}</p>
+          <p>
+            {item.transaction_type === "sale"
+              ? "بيع"
+              : item.transaction_type === "annual"
+                ? "سنوي"
+                : item.transaction_type === "monthly"
+                  ? "شهري"
+                  : item.transaction_type === "daily"
+                    ? "يومي"
+                    : item.transaction_type}
+          </p>
+          <Button type="button" variant="ghost" onClick={() => setOpen(open === item.id ? "" : item.id)}>
+            {open === item.id ? "إخفاء التفاصيل" : "التفاصيل"}
+          </Button>
+          {open === item.id ? (
+            <>
           {item.timing_note ? <p>{item.timing_note}</p> : null}
           {item.budget_minor ? <p>{money(item.budget_minor, "ar")}</p> : null}
           {item.specs_ar ? <p>{item.specs_ar}</p> : null}
           {item.specs_en ? <p dir="ltr">{item.specs_en}</p> : null}
           {item.close_reason ? <p>{item.close_reason}</p> : null}
-          {can("update") && (nextStages[item.stage] || item.stage === "agreement") ? (
+          {open === item.id && can("update") && (nextStages[item.stage] || item.stage === "agreement") ? (
             <div className="grid gap-2">
               <Input
                 value={reasons[item.id] ?? ""}
@@ -163,6 +208,8 @@ export default function RequestsPage() {
                 ) : null}
               </div>
             </div>
+          ) : null}
+            </>
           ) : null}
         </article>
       ))}

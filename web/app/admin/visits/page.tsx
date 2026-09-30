@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Failure, api, useSession } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,8 @@ const views = [
 export default function VisitsPage() {
   const me = useSession();
   const [items, setItems] = useState<Item[]>([]);
-  const [view, setView] = useState("");
+  const initialView = useSearchParams().get("view") ?? "";
+  const [view, setView] = useState(initialView);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<unknown>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
@@ -108,16 +110,29 @@ export default function VisitsPage() {
               {!item.broker_user_id ? " · غير مسند" : ""}
             </span>
           </div>
-          <p>{new Date(item.starts_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}</p>
-          {item.instructions_ar ? <p>{item.instructions_ar}</p> : null}
-          {item.instructions_en ? <p dir="ltr">{item.instructions_en}</p> : null}
-          {item.result ? <p>النتيجة: {item.result}</p> : null}
-          {item.result_note ? <p>{item.result_note}</p> : null}
+          <p>
+            البداية {new Date(item.starts_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })} · النهاية{" "}
+            {new Date(item.ends_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })} · توقيت الرياض
+          </p>
+          {item.instructions_ar ? <p>رسالة للعميل: {item.instructions_ar}</p> : null}
+          {item.result ? (
+            <p>
+              النتيجة:{" "}
+              {item.result === "interested" ? "مهتم" : item.result === "follow_up" ? "متابعة" : item.result === "negotiation" ? "تفاوض" : item.result}
+            </p>
+          ) : null}
+          {item.result_note ? <p>ملاحظة داخلية يراها فريق العمل فقط: {item.result_note}</p> : null}
           {item.cancel_reason ? <p>{item.cancel_reason}</p> : null}
           {item.status !== "completed" && item.status !== "cancelled" && item.status !== "no_show" ? (
             <div className="grid gap-2">
-              <Input value={reasons[item.id] ?? ""} onChange={(event) => setReasons({ ...reasons, [item.id]: event.target.value })} placeholder="سبب الإلغاء أو الرفض أو إعادة الجدولة" />
-              <Input type="datetime-local" value={slots[item.id] ?? ""} onChange={(event) => setSlots({ ...slots, [item.id]: event.target.value })} />
+              <label className="grid gap-2">
+                سبب الإلغاء أو الرفض أو إعادة الجدولة
+                <Input value={reasons[item.id] ?? ""} onChange={(event) => setReasons({ ...reasons, [item.id]: event.target.value })} />
+              </label>
+              <label className="grid gap-2">
+                الموعد الجديد بتوقيت الرياض
+                <Input type="datetime-local" value={slots[item.id] ?? ""} onChange={(event) => setSlots({ ...slots, [item.id]: event.target.value })} />
+              </label>
               <div className="flex flex-wrap gap-2">
                 {can("update") && item.status === "awaiting_broker" ? (
                   <Button type="button" onClick={() => void command(item, "broker-confirm")}>

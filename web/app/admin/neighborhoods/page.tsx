@@ -50,6 +50,8 @@ export default function NeighborhoodsPage() {
   const [geojson, setGeojson] = useState("");
   const [sale, setSale] = useState(false);
   const [reason, setReason] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [pending, setPending] = useState(false);
 
   const can = (action: string) => (me?.actions.geography ?? []).includes(action);
@@ -159,12 +161,35 @@ export default function NeighborhoodsPage() {
       {state === "loading" ? <p className="text-sm">جارٍ تحميل الأحياء…</p> : null}
       {state === "error" && !(error instanceof ApiError) ? <p className="text-sm text-warn">تعذر تحميل الأحياء.</p> : null}
       {state === "ready" && items.length === 0 ? <p className="rounded-lg border border-dashed border-line p-4 text-sm">لا توجد أحياء.</p> : null}
+      <div className="flex flex-wrap gap-2">
+        <label className="grid gap-2 text-sm">
+          بحث بالاسم
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        <label className="grid gap-2 text-sm">
+          الحالة
+          <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">الكل</option>
+            {Object.entries(statuses).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <ul className="grid gap-3">
-        {items.map((item) => {
+        {items
+          .filter((item) => !statusFilter || item.status === statusFilter)
+          .filter((item) => {
+            const name = `${item.texts?.find((text) => text.locale === "ar")?.name ?? ""} ${item.texts?.find((text) => text.locale === "en")?.name ?? ""}`;
+            return name.includes(query.trim());
+          })
+          .map((item) => {
           const ar = item.texts?.find((text) => text.locale === "ar")?.name;
           const en = item.texts?.find((text) => text.locale === "en")?.name;
           return (
-            <li key={item.id} className="rounded-lg border border-line bg-card p-4">
+            <li id={item.id} key={item.id} className="rounded-lg border border-line bg-card p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-semibold">{ar}</h2>
                 <span className="text-sm">{statuses[item.status] ?? item.status}</span>

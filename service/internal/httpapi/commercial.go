@@ -215,7 +215,7 @@ func (a *API) staffRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, size := platform.Page(r.URL.Query().Get("page"), r.URL.Query().Get("page_size"))
-	items, total, err := a.Clients.List(r.Context(), user.CompanyID, r.URL.Query().Get("stage"), page, size)
+	items, total, err := a.Clients.List(r.Context(), user.CompanyID, r.URL.Query().Get("stage"), r.URL.Query().Get("q"), r.URL.Query().Get("unassigned") == "1", page, size)
 	if err != nil {
 		writeErr(w, r, err)
 		return
