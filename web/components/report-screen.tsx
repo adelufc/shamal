@@ -269,7 +269,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.neighborhood}
-          <select className="rounded-md border border-line bg-paper px-2 py-2" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)}>
+          <select className="w-full rounded-md border border-line bg-paper px-2 py-2" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)}>
             <option value="">{text.any}</option>
             {places.map((place) => (
               <option key={place.id} value={place.id}>

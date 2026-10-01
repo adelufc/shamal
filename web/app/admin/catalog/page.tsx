@@ -26,9 +26,42 @@ type PropertyRow = {
   version?: number;
   created_at?: string;
 };
-type Branch = { id: string; kind: string; name_ar: string; status: string };
-
+type RelatedListing = {
+  id: string;
+  property_id: string;
+  unit_id: string;
+  status: string;
+  broker_user_id: string;
+  texts?: { locale: string; title?: string }[];
+};
 const placeStatus: Record<string, string> = { draft: "مسودة", published: "منشور", in_review: "قيد المراجعة", suspended: "موقوف" };
+const listingStatus: Record<string, string> = { draft: "مسودة", in_review: "قيد المراجعة", approved: "معتمد", published: "منشور", archived: "مؤرشف" };
+
+function recordedPerson(id: string | undefined, access: "unknown" | "ready" | "hidden", people: Staff[]) {
+  if (!id) return "غير مسجل";
+  if (access === "unknown") return "جارٍ التحقق من الأسماء…";
+  if (access !== "ready") return "غير متاح لهذا الحساب";
+  return people.find((person) => person.id === id)?.display_name || "غير متاح لهذا الحساب";
+}
+
+async function loadPropertyLinks() {
+  const [published, drafts] = await Promise.all([
+    api<{ items: { id: string }[] }>("/api/v1/catalog/listings?status=published"),
+    api<{ items: { id: string }[] }>("/api/v1/catalog/listings?status=draft"),
+  ]);
+  const ids = [...published.items, ...drafts.items].map((item) => item.id);
+  const details: RelatedListing[] = [];
+  let cursor = 0;
+  async function next() {
+    while (cursor < ids.length) {
+      const id = ids[cursor];
+      cursor += 1;
+      details.push(await api<RelatedListing>(`/api/v1/catalog/listings/${id}`));
+    }
+  }
+  await Promise.all([next(), next(), next(), next(), next(), next()]);
+  return details;
+}
 
 export default function CatalogPage() {
   const me = useSession();
@@ -58,7 +91,10 @@ export default function CatalogPage() {
   const [owner, setOwner] = useState("");
   const [broker, setBroker] = useState("");
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [staffAccess, setStaffAccess] = useState<"unknown" | "ready" | "hidden">("unknown");
+  const [related, setRelated] = useState<RelatedListing[]>([]);
+  const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [relatedError, setRelatedError] = useState<unknown>(null);
   const [step, setStep] = useState(1);
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [propertyTotal, setPropertyTotal] = useState(0);
@@ -102,7 +138,7 @@ export default function CatalogPage() {
     Promise.allSettled([
       api<{ items: Neighborhood[] }>("/api/v1/geo/neighborhoods?page_size=100"),
       api<{ items: PropertyType[] }>("/api/v1/catalog/property-types"),
-      api<{ staff: Staff[]; nodes?: Branch[] }>("/api/v1/org/structure"),
+      api<{ staff: Staff[] }>("/api/v1/org/structure"),
     ]).then((results) => {
       if (stop) return;
       const [places, kinds, structure] = results;
@@ -113,10 +149,36 @@ export default function CatalogPage() {
       }
       setNeighborhoods(places.value.items);
       setTypes(kinds.value.items);
-      setStaff(structure.status === "fulfilled" ? structure.value.staff : []);
-      setBranches(structure.status === "fulfilled" ? (structure.value.nodes ?? []).filter((node) => node.kind === "branch") : []);
+      if (structure.status === "fulfilled") {
+        setStaff(structure.value.staff);
+        setStaffAccess("ready");
+      } else {
+        setStaff([]);
+        setStaffAccess("hidden");
+      }
       setState("ready");
     });
+    return () => {
+      stop = true;
+    };
+  }, [me]);
+
+  useEffect(() => {
+    if (!me || !(me.actions.catalog ?? []).includes("view")) return;
+    let stop = false;
+    setRelatedState("loading");
+    loadPropertyLinks()
+      .then((items) => {
+        if (stop) return;
+        setRelated(items);
+        setRelatedState("ready");
+      })
+      .catch((caught) => {
+        if (stop) return;
+        setRelated([]);
+        setRelatedError(caught);
+        setRelatedState("error");
+      });
     return () => {
       stop = true;
     };
@@ -197,8 +259,6 @@ export default function CatalogPage() {
   const createAllowed = can("create");
   const labeledPlaces = placeLabels(neighborhoods);
   const placeName = (id: string) => labeledPlaces.find((item) => item.id === id)?.label ?? "";
-  const personName = (id?: string) => (id ? staff.find((person) => person.id === id)?.display_name : "") ?? "";
-  const branchName = (id?: string) => (id ? branches.find((item) => item.id === id)?.name_ar : "") ?? "";
 
   return (
     <section className="grid gap-4">
@@ -382,33 +442,56 @@ export default function CatalogPage() {
               </Button>
               {openProperty === item.id ? (
                 <dl className="grid gap-1">
-                  <div>النوع: {propertyTypeName("ar", item.type_code) || "غير معروف"}</div>
-                  <div>المساحة: {item.area_sqm} م²</div>
-                  <div>العنوان العربي: {item.address_ar || "بدون عنوان عربي"}</div>
-                  <div>العنوان الإنجليزي: {item.address_en || "بدون عنوان إنجليزي"}</div>
+                  <div>مرجع العقار: {item.id}</div>
+                  <div>العنوان: {item.address_ar.trim() ? item.address_ar : "غير مسجل"}</div>
+                  <div>النوع: {propertyTypeName("ar", item.type_code) || "غير مسجل"}</div>
                   <div>
-                    الحي: {placeName(item.neighborhood_id) || "اسم الحي غير متاح في هذه القائمة"}{" "}
+                    الحي: {placeName(item.neighborhood_id) || "غير مسجل"}{" "}
                     <a className="underline" href={`/admin/neighborhoods#${item.neighborhood_id}`}>
                       سجل الحي
                     </a>
                   </div>
-                  <div>الفرع: {branchName(item.branch_id) || "غير مربوط بفرع في هذه القائمة"}</div>
-                  <div>مرجع التفويض: {item.delegation_ref || "غير مسجّل"}</div>
-                  <div>المالك: {personName(item.owner_user_id) || "غير ظاهر في قائمة الموظفين المتاحة لهذه الصلاحية"}</div>
-                  <div>
-                    أُنشئ:{" "}
-                    {item.created_at
-                      ? new Date(item.created_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })
-                      : "غير مسجّل"}
-                    {item.version ? ` · الإصدار ${item.version}` : ""}
-                  </div>
-                  {item.precise_lon != null && item.precise_lat != null ? (
-                    <div>
-                      إحداثيات دقيقة للسجل: {item.precise_lat} ، {item.precise_lon}. الموقع العام للزائر يبقى تقريبياً داخل الحي.
-                    </div>
-                  ) : (
-                    <div>لا توجد إحداثيات دقيقة على هذا السجل.</div>
-                  )}
+                  <div>المساحة: {item.area_sqm} م²</div>
+                  <div>مرجع التفويض: {item.delegation_ref?.trim() ? item.delegation_ref : "غير مسجل"}</div>
+                  <div>المالك: {recordedPerson(item.owner_user_id, staffAccess, staff)}</div>
+                  {relatedState === "loading" || relatedState === "idle" ? <div>جارٍ تحميل الوحدات والإعلانات…</div> : null}
+                  {relatedState === "error" ? <Failure error={relatedError} /> : null}
+                  {relatedState === "ready" && related.filter((entry) => entry.property_id === item.id).length === 0 ? (
+                    <>
+                      <div>الوحدات: غير مسجل</div>
+                      <div>الإعلانات: غير مسجل</div>
+                    </>
+                  ) : null}
+                  {relatedState === "ready"
+                    ? related
+                        .filter((entry) => entry.property_id === item.id)
+                        .map((entry) => {
+                          const href = entry.status === "published" ? `/listings/${entry.id}` : `/admin/listings?listing=${entry.id}`;
+                          const title = entry.texts?.find((text) => text.locale === "ar")?.title || entry.texts?.[0]?.title || entry.id;
+                          return (
+                            <div key={entry.id} className="grid gap-1">
+                              <div>
+                                الوحدة:{" "}
+                                {entry.unit_id ? (
+                                  <a className="underline" href={href}>
+                                    {entry.unit_id}
+                                  </a>
+                                ) : (
+                                  "غير مسجل"
+                                )}
+                              </div>
+                              <div>
+                                الإعلان:{" "}
+                                <a className="underline" href={href}>
+                                  {title}
+                                </a>
+                                {` · ${listingStatus[entry.status] ?? entry.status}`}
+                              </div>
+                              <div>الوسيط: {recordedPerson(entry.broker_user_id, staffAccess, staff)}</div>
+                            </div>
+                          );
+                        })
+                    : null}
                 </dl>
               ) : null}
             </article>

@@ -88,7 +88,10 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
 
-  const pendingOnly = useSearchParams().get("pending") === "1";
+  const params = useSearchParams();
+  const pendingOnly = params.get("pending") === "1";
+  const requestedListing = params.get("listing") ?? "";
+  const [linked, setLinked] = useState<{ id: string; unit_id: string; status: string; texts?: { locale: string; title: string }[] } | null>(null);
   const shown = pendingOnly ? items.filter((item) => item.pending_changes) : items;
   const current = shown.find((item) => item.id === id) ?? null;
   const canUpdate = (me?.actions.catalog ?? []).includes("update");
@@ -112,6 +115,26 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
       .catch((caught: unknown) => setError(caught))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!requestedListing) return;
+    if (items.some((item) => item.id === requestedListing)) {
+      setId(requestedListing);
+      setLinked(null);
+      return;
+    }
+    let stop = false;
+    api<{ id: string; unit_id: string; status: string; texts?: { locale: string; title: string }[] }>(`/api/v1/catalog/listings/${requestedListing}`)
+      .then((item) => {
+        if (!stop) setLinked(item);
+      })
+      .catch((caught: unknown) => {
+        if (!stop) setError(caught);
+      });
+    return () => {
+      stop = true;
+    };
+  }, [requestedListing, items]);
 
   useEffect(() => {
     if (!current) return;
@@ -177,6 +200,21 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
           ) : null}
           <p className="text-sm text-ink/70">{text.login}</p>
         </div>
+      ) : null}
+      {linked && linked.id === requestedListing && !items.some((item) => item.id === requestedListing) ? (
+        <article className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
+          <h2 className="font-semibold">{locale === "en" ? "Linked listing" : "الإعلان المرتبط"}</h2>
+          <p>{locale === "en" ? "Listing reference" : "مرجع الإعلان"}: {linked.id}</p>
+          <p>
+            {locale === "en" ? "Title" : "العنوان"}: {linked.texts?.find((text) => text.locale === locale)?.title || linked.texts?.[0]?.title || linked.id}
+          </p>
+          <p>
+            {locale === "en" ? "Unit reference" : "مرجع الوحدة"}: {linked.unit_id || (locale === "en" ? "Not recorded" : "غير مسجل")}
+          </p>
+          <p>
+            {locale === "en" ? "Status" : "الحالة"}: {linked.status === "draft" ? (locale === "en" ? "Draft" : "مسودة") : linked.status}
+          </p>
+        </article>
       ) : null}
       {pendingOnly ? <p className="text-sm">تغييرات معلّقة: {shown.length}</p> : null}
       {!loading && shown.length === 0 ? <p className="text-sm">{pendingOnly ? "لا توجد تغييرات معلّقة في الإعلانات المحمّلة." : text.empty}</p> : null}

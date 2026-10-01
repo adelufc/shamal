@@ -14,33 +14,54 @@ const statusLabel: Record<string, string> = {
   suspended: "موقوف",
 };
 
-const coverageLabel: Record<string, string> = {
-  served: "مخدوم",
-  partial: "تغطية جزئية",
-  none: "بلا تغطية",
-};
+function countsOf(labels: string[]) {
+  const counts = new Map<string, number>();
+  for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+  return counts;
+}
 
-function baseLabel(item: PlaceLabelSource) {
-  const arabic = item.texts?.find((text) => text.locale === "ar");
+function arabic(item: PlaceLabelSource) {
+  return item.texts?.find((text) => text.locale === "ar");
+}
+
+function placeName(item: PlaceLabelSource) {
   const english = item.texts?.find((text) => text.locale === "en");
-  const name = arabic?.name || english?.name || "حي بلا اسم";
-  const parts = [name];
-  if (english?.name && english.name !== name) parts.push(english.name);
-  if (item.status && statusLabel[item.status]) parts.push(statusLabel[item.status]);
-  const description = arabic?.description?.trim();
-  if (description) parts.push(description.length > 42 ? `${description.slice(0, 42)}…` : description);
-  else if (arabic?.slug) parts.push(arabic.slug);
-  if (item.coverage && coverageLabel[item.coverage]) parts.push(coverageLabel[item.coverage]);
-  return parts.join(" — ");
+  return arabic(item)?.name || english?.name || "حي بلا اسم";
+}
+
+function placeStatus(item: PlaceLabelSource) {
+  if (!item.status || !statusLabel[item.status]) return "";
+  return statusLabel[item.status];
+}
+
+function adminDescription(item: PlaceLabelSource) {
+  const description = arabic(item)?.description?.trim();
+  if (description) return description.length > 42 ? `${description.slice(0, 42)}…` : description;
+  return arabic(item)?.slug?.trim() ?? "";
 }
 
 export function placeLabels(items: PlaceLabelSource[]) {
-  const bases = items.map(baseLabel);
-  const counts = new Map<string, number>();
-  for (const label of bases) counts.set(label, (counts.get(label) ?? 0) + 1);
-  return items.map((item, index) => {
-    const label = bases[index];
-    const shared = (counts.get(label) ?? 0) > 1;
-    return { id: item.id, label: shared ? `${label} — ${item.id.slice(0, 8)}` : label };
+  const withStatus = items.map((item) => {
+    const name = placeName(item);
+    const status = placeStatus(item);
+    return status ? `${name} — ${status}` : name;
+  });
+  const statusCounts = countsOf(withStatus);
+  const withDescription = items.map((item, index) => {
+    if ((statusCounts.get(withStatus[index]) ?? 0) <= 1) return withStatus[index];
+    const description = adminDescription(item);
+    return description ? `${withStatus[index]} — ${description}` : withStatus[index];
+  });
+  const descriptionCounts = countsOf(withDescription);
+  const marked = items.map((item, index) => {
+    const label = withDescription[index];
+    if ((descriptionCounts.get(label) ?? 0) <= 1) return { id: item.id, label };
+    return { id: item.id, label: `${withStatus[index]} — ${item.id.slice(0, 8)}` };
+  });
+  const shortCounts = countsOf(marked.map((item) => item.label));
+  return marked.map((item, index) => {
+    if ((shortCounts.get(item.label) ?? 0) <= 1) return item;
+    if ((descriptionCounts.get(withDescription[index]) ?? 0) <= 1) return item;
+    return { id: item.id, label: `${withStatus[index]} — ${item.id}` };
   });
 }
