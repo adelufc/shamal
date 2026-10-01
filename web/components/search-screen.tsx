@@ -492,6 +492,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
               <ListingMap
                 locale={locale}
                 places={payload.places}
+                focusId={neighborhood}
                 markers={payload.markers}
                 clusters={payload.clusters}
                 forceClusters={payload.marker_mode === "clusters"}
@@ -532,6 +533,7 @@ function FilterSummary({ locale, query }: { locale: Locale; query: SearchPayload
 function ListingMap({
   locale,
   places,
+  focusId,
   markers,
   clusters,
   forceClusters,
@@ -541,6 +543,7 @@ function ListingMap({
 }: {
   locale: Locale;
   places: Place[];
+  focusId: string;
   markers: Marker[];
   clusters: Cluster[];
   forceClusters: boolean;
@@ -558,6 +561,16 @@ function ListingMap({
       return null;
     }
   }, [places]);
+  const resultView = useMemo(() => resultBounds(places, markers, clusters), [places, markers, clusters]);
+  useEffect(() => {
+    if (!drawn) return;
+    if (focusId) {
+      const box = storedBounds(places, focusId);
+      if (box) mapRef.current?.frame(box, true);
+      return;
+    }
+    mapRef.current?.frame(resultView ?? drawn.bounds, false);
+  }, [focusId, places, drawn, resultView]);
   const dots = useMemo(
     () => mapDots(markers, clusters, forceClusters, detail ? 1 : 0, locale),
     [markers, clusters, forceClusters, detail, locale],
@@ -643,6 +656,68 @@ function mapDots(markers: Marker[], clusters: Cluster[], forceClusters: boolean,
     return [...groups.values()].map((item) => ({ key: item.key, lon: item.lon, lat: item.lat, count: item.count, label: labelFor(item.codes), numbered: true }));
   }
   return markers.map((item) => ({ key: item.id, lon: item.lon, lat: item.lat, count: 1, label: propertyTypeName(locale, item.type_code), numbered: false }));
+}
+
+function storedBounds(places: Place[], id: string): Box | null {
+  const place = places.find((item) => item.id === id);
+  if (!place?.geojson) return null;
+  try {
+    return geometryBounds(place.geojson);
+  } catch {
+    return null;
+  }
+}
+
+function resultBounds(places: Place[], markers: Marker[], clusters: Cluster[]): Box | null {
+  const ids = new Set<string>();
+  for (const marker of markers) ids.add(marker.neighborhood_id);
+  for (const cluster of clusters) ids.add(cluster.neighborhood_id);
+  let box: Box | null = null;
+  for (const id of ids) {
+    const place = places.find((item) => item.id === id);
+    const next = place?.geojson ? safeGeometryBounds(place.geojson) : null;
+    box = unionBox(box, next);
+  }
+  return box;
+}
+
+function safeGeometryBounds(geojson: string): Box | null {
+  try {
+    return geometryBounds(geojson);
+  } catch {
+    return null;
+  }
+}
+
+function geometryBounds(geojson: string): Box | null {
+  const geometry = JSON.parse(geojson) as { type: string; coordinates: number[][][] | number[][][][] };
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates as number[][][]] : geometry.type === "MultiPolygon" ? (geometry.coordinates as number[][][][]) : [];
+  const bounds: Box = { west: 180, south: 90, east: -180, north: -90 };
+  let found = false;
+  for (const polygon of polygons) {
+    const ring = polygon[0];
+    if (!ring) continue;
+    for (const pair of ring) {
+      if (!Number.isFinite(pair[0]) || !Number.isFinite(pair[1])) continue;
+      found = true;
+      bounds.west = Math.min(bounds.west, pair[0]);
+      bounds.east = Math.max(bounds.east, pair[0]);
+      bounds.south = Math.min(bounds.south, pair[1]);
+      bounds.north = Math.max(bounds.north, pair[1]);
+    }
+  }
+  return found ? bounds : null;
+}
+
+function unionBox(left: Box | null, right: Box | null): Box | null {
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    west: Math.min(left.west, right.west),
+    east: Math.max(left.east, right.east),
+    south: Math.min(left.south, right.south),
+    north: Math.max(left.north, right.north),
+  };
 }
 
 function shapes(places: Place[]) {

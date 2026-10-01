@@ -11,6 +11,7 @@ export type StreetMapHandle = {
   zoomIn: () => void;
   zoomOut: () => void;
   bounds: () => MapBox | null;
+  frame: (box: MapBox, place: boolean) => void;
 };
 
 type Props = {
@@ -29,6 +30,7 @@ export const StreetMap = forwardRef<StreetMapHandle, Props>(function StreetMap({
   const groupRef = useRef<LayerGroup | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const startZoom = useRef<number | null>(null);
+  const frameRef = useRef<{ box: MapBox; place: boolean } | null>(null);
   const onDetailRef = useRef(onDetail);
   const ringsRef = useRef(rings);
   const dotsRef = useRef(dots);
@@ -43,6 +45,12 @@ export const StreetMap = forwardRef<StreetMapHandle, Props>(function StreetMap({
       const box = mapRef.current?.getBounds();
       if (!box) return null;
       return { west: box.getWest(), south: box.getSouth(), east: box.getEast(), north: box.getNorth() };
+    },
+    frame: (box, place) => {
+      frameRef.current = { box, place };
+      const map = mapRef.current;
+      if (!map || !host.current || host.current.clientWidth === 0) return;
+      showFrame(map, box, place, startZoom);
     },
   }));
 
@@ -81,15 +89,11 @@ export const StreetMap = forwardRef<StreetMapHandle, Props>(function StreetMap({
         if (!map || !host.current || host.current.clientWidth === 0) return;
         map.invalidateSize();
         if (fitted) return;
-        map.fitBounds(
-          [
-            [bounds.south, bounds.west],
-            [bounds.north, bounds.east],
-          ],
-          { padding: [20, 20], maxZoom: 14, animate: false },
-        );
-        if (map.getZoom() < 12) map.setZoom(12, { animate: false });
-        startZoom.current = map.getZoom();
+        const chosen = frameRef.current;
+        if (chosen) showFrame(map, chosen.box, chosen.place, startZoom);
+        else {
+          showFrame(map, bounds, false, startZoom);
+        }
         fitted = true;
       };
       map.on("zoomend", () => {
@@ -125,6 +129,18 @@ export const StreetMap = forwardRef<StreetMapHandle, Props>(function StreetMap({
     </div>
   );
 });
+
+function showFrame(map: LeafletMap, box: MapBox, place: boolean, startZoom: { current: number | null }) {
+  map.fitBounds(
+    [
+      [box.south, box.west],
+      [box.north, box.east],
+    ],
+    { padding: [28, 28], maxZoom: place ? 16 : 14, animate: false },
+  );
+  if (!place && map.getZoom() < 12) map.setZoom(12, { animate: false });
+  if (startZoom.current == null) startZoom.current = map.getZoom();
+}
 
 function paint(L: typeof import("leaflet"), group: LayerGroup, rings: number[][][], dots: MapDot[]) {
   group.clearLayers();
