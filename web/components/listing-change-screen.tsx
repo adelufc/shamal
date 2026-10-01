@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ApiError, Failure, api } from "@/components/admin-shell";
 import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,9 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
 
-  const current = items.find((item) => item.id === id) ?? null;
+  const pendingOnly = useSearchParams().get("pending") === "1";
+  const shown = pendingOnly ? items.filter((item) => item.pending_changes) : items;
+  const current = shown.find((item) => item.id === id) ?? null;
   const canUpdate = (me?.actions.catalog ?? []).includes("update");
 
   async function load() {
@@ -175,12 +178,13 @@ export function ListingChangeScreen({ locale, framed = false }: { locale: Locale
           <p className="text-sm text-ink/70">{text.login}</p>
         </div>
       ) : null}
-      {!loading && items.length === 0 ? <p className="text-sm">{text.empty}</p> : null}
-      {items.length > 0 ? (
+      {pendingOnly ? <p className="text-sm">تغييرات معلّقة: {shown.length}</p> : null}
+      {!loading && shown.length === 0 ? <p className="text-sm">{pendingOnly ? "لا توجد تغييرات معلّقة في الإعلانات المحمّلة." : text.empty}</p> : null}
+      {shown.length > 0 ? (
         <Label>
           {text.listing}
-          <select className="rounded-md border border-line bg-paper px-2 py-2" value={id} onChange={(event) => setId(event.target.value)}>
-            {items.map((item) => (
+          <select className="rounded-md border border-line bg-paper px-2 py-2" value={current ? id : ""} onChange={(event) => setId(event.target.value)}>
+            {shown.map((item) => (
               <option key={item.id} value={item.id}>
                 {title(item)}
               </option>

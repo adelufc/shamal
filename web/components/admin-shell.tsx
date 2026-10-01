@@ -41,21 +41,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [me, setMe] = useState<SessionUser | null>(null);
   const [state, setState] = useState<"loading" | "guest" | "ready" | "error">("loading");
+  const [checkedPath, setCheckedPath] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
     let stop = false;
+    setCheckedPath(null);
+    setState("loading");
     api<SessionUser>("/api/v1/me")
       .then((user) => {
         if (stop) return;
         setMe(user);
         setState("ready");
+        setCheckedPath(path);
       })
       .catch((error: unknown) => {
         if (stop) return;
         setMe(null);
         setState(error instanceof ApiError ? "guest" : "error");
+        setCheckedPath(path);
       });
     return () => {
       stop = true;
@@ -63,9 +68,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, [path]);
 
   useEffect(() => {
+    if (checkedPath !== path) return;
     if (state === "guest" && path !== "/admin/login") router.replace("/admin/login");
     if (state === "ready" && path === "/admin/login") router.replace("/admin/neighborhoods");
-  }, [state, path, router]);
+  }, [state, path, checkedPath, router]);
 
   async function logout() {
     await api("/api/v1/auth/logout", { method: "POST" });
@@ -149,7 +155,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       links: [
         ["/admin/organization", "الهيكل"],
         ["/admin/permissions", "الصلاحيات"],
-        ["/notifications", "الإشعارات"],
+        ["/admin/notifications", "الإشعارات"],
       ],
     },
   ] as const;
@@ -167,18 +173,22 @@ export function AdminShell({ children }: { children: ReactNode }) {
               }}
             >
               <span>{me.step_up ? "التحقق الإضافي ساري." : "النشر والاعتماد يحتاجان رمزاً إضافياً."}</span>
-              <input
-                value={code}
-                onChange={(event) => {
-                  const next = verificationDigits(event.target.value);
-                  setCode(next.letters ? "" : next.digits);
-                }}
-                inputMode="numeric"
-                autoComplete="off"
-                className="w-32 rounded-md border border-line bg-card px-2 py-1"
-                aria-label="رمز من 6 أرقام"
-              />
-              <button className="rounded-md bg-olive px-3 py-1 text-paper">تأكيد</button>
+              {me.step_up ? null : (
+                <>
+                  <input
+                    value={code}
+                    onChange={(event) => {
+                      const next = verificationDigits(event.target.value);
+                      setCode(next.letters ? "" : next.digits);
+                    }}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="w-32 rounded-md border border-line bg-card px-2 py-1"
+                    aria-label="رمز من 6 أرقام"
+                  />
+                  <button className="rounded-md bg-olive px-3 py-1 text-paper">تأكيد</button>
+                </>
+              )}
               {notice ? <span>{notice}</span> : null}
             </form>
           </div>

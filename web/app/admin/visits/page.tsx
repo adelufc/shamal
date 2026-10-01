@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Failure, api, useSession } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { placeLabels } from "@/lib/place-label";
+import { propertyTypeName } from "@/lib/property-types";
 
 type Item = {
   id: string;
@@ -15,6 +17,10 @@ type Item = {
   instructions_ar: string;
   instructions_en: string;
   broker_user_id: string;
+  host_user_id?: string;
+  listing_id?: string;
+  property_id?: string;
+  unit_id?: string;
   result: string;
   result_note: string;
   overdue: boolean;
@@ -49,7 +55,11 @@ export default function VisitsPage() {
   const [error, setError] = useState<unknown>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [slots, setSlots] = useState<Record<string, string>>({});
+  const [listings, setListings] = useState<Record<string, { title: string; neighborhoodId: string; typeName: string }>>({});
+  const [people, setPeople] = useState<Record<string, string>>({});
+  const [places, setPlaces] = useState<Record<string, string>>({});
   const can = (action: string) => (me?.actions.visits ?? []).includes(action);
+  const canCatalog = (me?.actions.catalog ?? []).includes("view");
 
   async function load(next = view) {
     const body = await api<{ items: Item[] }>(`/api/v1/visits?page_size=100${next ? `&view=${next}` : ""}`);
@@ -69,6 +79,47 @@ export default function VisitsPage() {
       stop = true;
     };
   }, [me, view]);
+
+  useEffect(() => {
+    if (!me || items.length === 0) return;
+    let stop = false;
+    api<{ staff?: { id: string; display_name: string }[] }>("/api/v1/org/structure")
+      .then((body) => {
+        if (stop) return;
+        const next: Record<string, string> = {};
+        for (const person of body.staff ?? []) next[person.id] = person.display_name;
+        setPeople(next);
+      })
+      .catch(() => setPeople({}));
+    api<{ items: { id: string; status?: string; texts?: { locale: string; name?: string; slug?: string; description?: string }[] }[] }>("/api/v1/geo/neighborhoods?page_size=100")
+      .then((body) => {
+        if (stop) return;
+        const next: Record<string, string> = {};
+        for (const place of placeLabels(body.items)) next[place.id] = place.label;
+        setPlaces(next);
+      })
+      .catch(() => setPlaces({}));
+    if (!canCatalog) return () => { stop = true; };
+    const ids = [...new Set(items.map((item) => item.listing_id).filter((id): id is string => Boolean(id)))].slice(0, 40);
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const listing = await api<{ texts?: { locale: string; title: string }[]; neighborhood_id?: string; type_code?: string }>(`/api/v1/catalog/listings/${id}`);
+          return [id, {
+            title: listing.texts?.find((text) => text.locale === "ar")?.title || listing.texts?.[0]?.title || "إعلان بلا عنوان",
+            neighborhoodId: listing.neighborhood_id ?? "",
+            typeName: propertyTypeName("ar", listing.type_code),
+          }] as const;
+        } catch {
+          return [id, { title: "تعذر تحميل الإعلان", neighborhoodId: "", typeName: "" }] as const;
+        }
+      }),
+    ).then((rows) => {
+      if (stop) return;
+      setListings(Object.fromEntries(rows));
+    });
+    return () => { stop = true; };
+  }, [me, items, canCatalog]);
 
   async function command(item: Item, action: string, extra: Record<string, unknown> = {}) {
     setError(null);
@@ -90,7 +141,10 @@ export default function VisitsPage() {
   return (
     <section className="grid gap-4">
       <h1 className="text-2xl font-semibold">الزيارات</h1>
-      <p className="text-sm text-ink/80">الوسيط يؤكد ثم المالك. التعارض يُفحص عند التأكيد. الإكمال قبل نهاية الموعد يحتاج تصحيحاً من المدير وسبباً. المدة المقترحة للاختبار 30 دقيقة والفاصل 15 دقيقة.</p>
+      <details className="text-sm text-ink/80">
+        <summary>مساعدة</summary>
+        <p>الوسيط يؤكد ثم المالك. التعارض يُفحص عند التأكيد. الإكمال قبل نهاية الموعد يحتاج تصحيحاً من المدير وسبباً. المدة المقترحة للاختبار 30 دقيقة والفاصل 15 دقيقة.</p>
+      </details>
       <div className="flex flex-wrap gap-2">
         {views.map((item) => (
           <Button key={item.id || "all"} type="button" variant={view === item.id ? "primary" : "ghost"} onClick={() => setView(item.id)}>
@@ -110,6 +164,27 @@ export default function VisitsPage() {
               {!item.broker_user_id ? " · غير مسند" : ""}
             </span>
           </div>
+          <p>رقم الزيارة {item.id}</p>
+          <p>العميل: {item.display_name}</p>
+          <p>
+            العقار: {item.listing_id ? listings[item.listing_id]?.title || (canCatalog ? "جارٍ تحميل الإعلان" : "عرض الإعلان غير متاح لهذه الصلاحية") : "لا إعلان مرتبط"}
+            {item.listing_id && listings[item.listing_id]?.typeName ? ` · ${listings[item.listing_id].typeName}` : ""}
+            {item.listing_id && places[listings[item.listing_id]?.neighborhoodId ?? ""] ? ` · ${places[listings[item.listing_id].neighborhoodId]}` : ""}
+            {item.unit_id ? " · وحدة مرتبطة بالإعلان" : ""}
+          </p>
+          {item.listing_id && canCatalog ? (
+            <p>
+              <a className="underline" href={`/listings/${item.listing_id}`}>الإعلان</a>
+              {listings[item.listing_id]?.neighborhoodId ? (
+                <>
+                  {" · "}
+                  <a className="underline" href={`/admin/neighborhoods#${listings[item.listing_id].neighborhoodId}`}>سجل الحي</a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          <p>الوسيط: {item.broker_user_id ? people[item.broker_user_id] || "مسند، واسمه غير ظاهر في قائمة الموظفين" : "غير مسند"}</p>
+          <p>متابعة المالك: {item.host_user_id ? people[item.host_user_id] || "مسند، واسمه غير ظاهر في قائمة الموظفين" : "غير محدد"}</p>
           <p>
             البداية {new Date(item.starts_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })} · النهاية{" "}
             {new Date(item.ends_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })} · توقيت الرياض

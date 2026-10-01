@@ -14,6 +14,9 @@ type Refund = {
   status: string;
   success: boolean;
   approvals: number;
+  requester_id?: string;
+  first_approver?: string;
+  second_approver?: string;
 };
 
 const statusLabel: Record<string, string> = {
@@ -31,7 +34,9 @@ export default function RefundsPage() {
   const [items, setItems] = useState<Refund[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<unknown>(null);
+  const [people, setPeople] = useState<Record<string, string>>({});
   const can = (action: string) => (me?.actions.finance ?? []).includes(action);
+  const nameOf = (id?: string) => (id ? people[id] || "اسم غير ظاهر في قائمة الموظفين" : "غير مسجّل");
 
   async function load() {
     const body = await api<{ items: Refund[] }>("/api/v1/finance/refunds");
@@ -52,6 +57,17 @@ export default function RefundsPage() {
     };
   }, [me]);
 
+  useEffect(() => {
+    if (!me) return;
+    api<{ staff?: { id: string; display_name: string }[] }>("/api/v1/org/structure")
+      .then((body) => {
+        const next: Record<string, string> = {};
+        for (const person of body.staff ?? []) next[person.id] = person.display_name;
+        setPeople(next);
+      })
+      .catch(() => setPeople({}));
+  }, [me]);
+
   async function approve(item: Refund) {
     setError(null);
     try {
@@ -69,9 +85,12 @@ export default function RefundsPage() {
   return (
     <section className="grid gap-4">
       <h1 className="text-2xl font-semibold">طلبات الاسترداد</h1>
-      <p className="text-sm text-ink/80">
-        كل طلب يبقى مستقلاً عن الإقامة. حتى اعتماد حد مالي، يحتاج الطلب موافقتين من شخصين غير مقدمه. الموافقة ليست إرسالاً إلى مزود وليست نجاحاً، لأن بوابة الدفع غير معتمدة. لا تُدخل عمولة أو ضريبة أو رسم إلغاء.
-      </p>
+      <details className="text-sm text-ink/80">
+        <summary>مساعدة</summary>
+        <p>
+          كل طلب يبقى مستقلاً عن الإقامة. حتى اعتماد حد مالي، يحتاج الطلب موافقتين من شخصين غير مقدمه. الموافقة ليست إرسالاً إلى مزود وليست نجاحاً، لأن بوابة الدفع غير معتمدة. لا تُدخل عمولة أو ضريبة أو رسم إلغاء. سجل الحجز نفسه لا يفتح من شاشة موظف، فيظهر مرجعه كما هو في طلب الاسترداد.
+        </p>
+      </details>
       {error ? <Failure error={error} /> : null}
       {items.length === 0 ? <p className="text-sm">لا توجد طلبات استرداد.</p> : null}
       {items.map((item) => (
@@ -80,9 +99,14 @@ export default function RefundsPage() {
             <h2 className="font-semibold">{money(item.amount_minor, "ar")}</h2>
             <span>{statusLabel[item.status] ?? item.status}</span>
           </div>
-          <p>{item.reason}</p>
-          <p>طلب {item.id.slice(0, 8)} · حجز {item.stay_id.slice(0, 8)} · {item.currency}</p>
-          <p>الموافقات: {item.approvals} · نجاح الاسترداد: {item.success ? "نعم" : "لا"}</p>
+          <p>السبب: {item.reason}</p>
+          <p>مقدم الطلب: {nameOf(item.requester_id)}</p>
+          <p>مرجع الحجز: {item.stay_id}</p>
+          <p>مرجع الطلب: {item.id}</p>
+          <p>سجل الموافقات: {item.approvals === 0 ? "لا موافقة بعد" : `${item.approvals} من 2`}</p>
+          <p>الموافقة الأولى: {nameOf(item.first_approver)}</p>
+          <p>الموافقة الثانية: {nameOf(item.second_approver)}</p>
+          <p>نجاح رد المبلغ: {item.success ? "نعم" : "لا، والاعتماد لا يعني اكتمال الرد"}</p>
           {item.status === "approved" ? <p>اعتُمد الطلب ولم يكتمل رد المبلغ بعد</p> : null}
           {can("approve") && item.status === "under_review" ? (
             <Button type="button" onClick={() => void approve(item)}>

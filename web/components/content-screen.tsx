@@ -100,6 +100,7 @@ export function ContentScreen({ locale, framed = false }: { locale: Locale; fram
   const [pages, setPages] = useState<Page[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selected, setSelected] = useState<Page | null>(null);
+  const [previewLocale, setPreviewLocale] = useState<"ar" | "en">("ar");
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState<(typeof kinds)[number]>("article");
@@ -230,16 +231,35 @@ export function ContentScreen({ locale, framed = false }: { locale: Locale; fram
       {selected ? (
         <article className="grid gap-3 rounded-lg border border-line bg-card p-4">
           <h2 className="font-semibold">{text.preview}</h2>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant={previewLocale === "ar" ? "primary" : "ghost"} onClick={() => setPreviewLocale("ar")}>العربية</Button>
+            <Button type="button" variant={previewLocale === "en" ? "primary" : "ghost"} onClick={() => setPreviewLocale("en")}>English</Button>
+          </div>
           <p className="text-sm text-ink/70">{text.status[selected.status as keyof typeof text.status] ?? selected.status}</p>
-          <div dir="rtl">
-            <h3 className="font-semibold">{arabic?.title}</h3>
-            <p className="text-sm">{arabic?.body}</p>
-          </div>
-          <div dir="ltr">
-            <h3 className="font-semibold">{english?.title}</h3>
-            <p className="text-sm">{english?.body}</p>
-          </div>
-          {selected.neighborhood_id ? <p className="text-sm">{selected.neighborhood_id}</p> : null}
+          {previewLocale === "ar" ? (
+            <div dir="rtl">
+              <h3 className="font-semibold">{arabic?.title || "لا نص عربي"}</h3>
+              <p className="text-sm">{arabic?.body}</p>
+            </div>
+          ) : (
+            <div dir="ltr">
+              <h3 className="font-semibold">{english?.title || "No English text"}</h3>
+              <p className="text-sm">{english?.body}</p>
+            </div>
+          )}
+          {selected.neighborhood_id ? (
+            <p className="text-sm">
+              الحي: {(() => { const linked = places.find((place) => place.id === selected.neighborhood_id); return linked ? placeName(linked) : "اسم الحي غير متاح في القائمة"; })()}{" "}
+              <a className="underline" href={`/admin/neighborhoods#${selected.neighborhood_id}`}>{text.openPlace}</a>
+            </p>
+          ) : (
+            <p className="text-sm">بلا حي مرتبط</p>
+          )}
+          <details className="text-sm">
+            <summary>تفاصيل إدارية</summary>
+            <p>معرف المحتوى: {selected.id}</p>
+            {selected.neighborhood_id ? <p>معرف الحي: {selected.neighborhood_id}</p> : null}
+          </details>
           <div className="flex flex-wrap gap-2">
             {can("update") && selected.status === "draft" ? (
               <Button type="button" onClick={() => void move(selected, "submit")}>

@@ -6,6 +6,7 @@ import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { money } from "@/lib/chrome";
+import { placeLabels } from "@/lib/place-label";
 import type { Locale } from "@/lib/types";
 
 type Measure = {
@@ -187,14 +188,11 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
   }
 
   useEffect(() => {
-    api<{ items: { id: string; texts?: { locale: string; name: string }[] }[]; total: number }>("/api/v1/geo/neighborhoods?page_size=100")
+    api<{ items: { id: string; status?: string; coverage?: string; texts?: { locale: string; name?: string; slug?: string; description?: string }[] }[]; total: number }>(
+      "/api/v1/geo/neighborhoods?page_size=100",
+    )
       .then((body) => {
-        setPlaces(
-          body.items.map((item) => ({
-            id: item.id,
-            name: item.texts?.find((text) => text.locale === locale)?.name || item.texts?.[0]?.name || item.id,
-          })),
-        );
+        setPlaces(placeLabels(body.items).map((item) => ({ id: item.id, name: item.label })));
         setPlacesNote(body.total > body.items.length ? text.placesCap : "");
       })
       .catch(() => {

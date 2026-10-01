@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Failure, api, useSession } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -23,6 +24,11 @@ export default function AdminMessagesPage() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const waitingOnly = useSearchParams().get("waiting") === "1";
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [people, setPeople] = useState<Record<string, string>>({});
+  const [subjects, setSubjects] = useState<Record<string, string>>({});
   const can = (action: string) => (me?.actions.messages ?? []).includes(action);
 
   async function load() {
@@ -43,6 +49,36 @@ export default function AdminMessagesPage() {
       stop = true;
     };
   }, [me]);
+
+  useEffect(() => {
+    if (!me) return;
+    api<{ staff?: { id: string; display_name: string }[] }>("/api/v1/org/structure")
+      .then((body) => {
+        const next: Record<string, string> = {};
+        for (const person of body.staff ?? []) next[person.id] = person.display_name;
+        setPeople(next);
+      })
+      .catch(() => setPeople({}));
+  }, [me]);
+
+  useEffect(() => {
+    const ids = [...new Set(items.filter((item) => item.subject_kind === "listing").map((item) => item.subject_id))].slice(0, 40);
+    if (ids.length === 0 || !(me?.actions.catalog ?? []).includes("view")) return;
+    let stop = false;
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const listing = await api<{ texts?: { locale: string; title: string }[] }>(`/api/v1/catalog/listings/${id}`);
+          return [id, listing.texts?.find((text) => text.locale === "ar")?.title || "إعلان"] as const;
+        } catch {
+          return [id, "تعذر تحميل عنوان الإعلان"] as const;
+        }
+      }),
+    ).then((rows) => {
+      if (!stop) setSubjects(Object.fromEntries(rows));
+    });
+    return () => { stop = true; };
+  }, [items, me]);
 
   async function show(item: Item) {
     setOpen(item.id);
@@ -102,6 +138,13 @@ export default function AdminMessagesPage() {
     }
   }
 
+  const filtered = items.filter((item) => {
+    if (waitingOnly && item.first_human_reply_at) return false;
+    const haystack = `${item.client_name} ${kinds[item.subject_kind] ?? ""} ${subjects[item.subject_id] ?? ""}`.toLowerCase();
+    return haystack.includes(q.trim().toLowerCase());
+  });
+  const visible = filtered.slice((page - 1) * 25, page * 25);
+
   if (!can("view")) return <p className="text-sm">لا توجد صلاحية لعرض الرسائل.</p>;
   if (state === "loading") return <p className="text-sm">جارٍ التحميل…</p>;
   if (state === "error" && items.length === 0) return <Failure error={error} />;
@@ -109,16 +152,47 @@ export default function AdminMessagesPage() {
   return (
     <section className="grid gap-4">
       <h1 className="text-2xl font-semibold">الرسائل</h1>
-      <p className="text-sm text-ink/80">الرد الآلي والرد الجاهز لا يُحسبان أول رد بشري. الملاحظة الداخلية لا تصل إلى العميل. الحذف الإشرافي يخفي النص عن العميل ويبقي نسخة للتدقيق. لا مزود رسائل خارجي، لذلك حالة التسليم تبقى غير مرسلة.</p>
+      <details className="text-sm text-ink/80">
+        <summary>مساعدة</summary>
+        <p>الرد الآلي والرد الجاهز لا يُحسبان أول رد بشري. الملاحظة الداخلية لا تصل إلى العميل. الحذف الإشرافي يخفي النص عن العميل ويبقي نسخة للتدقيق. لا مزود رسائل خارجي، لذلك حالة التسليم تبقى غير مرسلة.</p>
+      </details>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          setPage(1);
+        }}
+      >
+        <label className="grid gap-1 text-sm">
+          بحث بالاسم أو الموضوع
+          <Input value={q} onChange={(event) => { setQ(event.target.value); setPage(1); }} />
+        </label>
+      </form>
       {error ? <Failure error={error} /> : null}
-      {items.length === 0 ? <p className="text-sm">لا توجد محادثات.</p> : null}
-      {items.map((item) => (
+      {filtered.length === 0 ? <p className="text-sm">{waitingOnly ? "لا توجد رسائل بانتظار الرد." : "لا توجد محادثات."}</p> : null}
+      <p className="text-sm">{filtered.length === 0 ? "عرض 0 من 0" : `عرض ${(page - 1) * 25 + 1}–${Math.min(page * 25, filtered.length)} من ${filtered.length}`}</p>
+      {visible.map((item) => (
         <button key={item.id} className="rounded-lg border border-line bg-card p-3 text-start text-sm" type="button" onClick={() => void show(item)}>
-          {item.client_name || "عميل"} · {kinds[item.subject_kind] ?? item.subject_kind} · {item.subject_id.slice(0, 8)} · غير مقروء {item.unread}
-          {item.assignee_id ? " · مسند" : " · غير مسند"}
-          {item.first_human_reply_at ? " · تم أول رد بشري" : " · بلا رد"}
+          <span className="font-semibold">{item.client_name || "عميل"}</span>
+          {" · "}
+          {kinds[item.subject_kind] ?? item.subject_kind}
+          {item.subject_kind === "listing" ? ` · ${subjects[item.subject_id] || "عنوان الإعلان"}` : ""}
+          {" · "}
+          {item.assignee_id ? people[item.assignee_id] || "مسند بلا اسم ظاهر" : "غير مسند"}
+          {" · "}
+          {item.first_human_reply_at ? "تم أول رد بشري" : "بانتظار الرد"}
+          {` · غير مقروء ${item.unread}`}
+          {item.subject_kind === "listing" ? (
+            <a className="mx-2 underline" href={`/listings/${item.subject_id}`} onClick={(event) => event.stopPropagation()}>
+              الإعلان
+            </a>
+          ) : null}
         </button>
       ))}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</Button>
+        <Button type="button" variant="ghost" disabled={page * 25 >= filtered.length} onClick={() => setPage(page + 1)}>التالي</Button>
+      </div>
       {open ? (
         <article className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
           {thread.map((item) => (

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { ApiError, Failure, api, useSession } from "@/components/admin-shell";
+import { placeLabels } from "@/lib/place-label";
 import { propertyTypeName } from "@/lib/property-types";
 import { Button } from "@/components/ui/button";
 import { Input, Label, TextArea } from "@/components/ui/input";
@@ -13,11 +14,19 @@ type Staff = { id: string; display_name: string; email: string };
 type PropertyRow = {
   id: string;
   neighborhood_id: string;
+  branch_id?: string;
+  owner_user_id?: string;
+  delegation_ref?: string;
   address_ar: string;
   address_en: string;
   type_code: string;
   area_sqm: number;
+  precise_lon?: number | null;
+  precise_lat?: number | null;
+  version?: number;
+  created_at?: string;
 };
+type Branch = { id: string; kind: string; name_ar: string; status: string };
 
 const placeStatus: Record<string, string> = { draft: "مسودة", published: "منشور", in_review: "قيد المراجعة", suspended: "موقوف" };
 
@@ -49,6 +58,7 @@ export default function CatalogPage() {
   const [owner, setOwner] = useState("");
   const [broker, setBroker] = useState("");
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [step, setStep] = useState(1);
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [propertyTotal, setPropertyTotal] = useState(0);
@@ -92,7 +102,7 @@ export default function CatalogPage() {
     Promise.allSettled([
       api<{ items: Neighborhood[] }>("/api/v1/geo/neighborhoods?page_size=100"),
       api<{ items: PropertyType[] }>("/api/v1/catalog/property-types"),
-      api<{ staff: Staff[] }>("/api/v1/org/structure"),
+      api<{ staff: Staff[]; nodes?: Branch[] }>("/api/v1/org/structure"),
     ]).then((results) => {
       if (stop) return;
       const [places, kinds, structure] = results;
@@ -104,6 +114,7 @@ export default function CatalogPage() {
       setNeighborhoods(places.value.items);
       setTypes(kinds.value.items);
       setStaff(structure.status === "fulfilled" ? structure.value.staff : []);
+      setBranches(structure.status === "fulfilled" ? (structure.value.nodes ?? []).filter((node) => node.kind === "branch") : []);
       setState("ready");
     });
     return () => {
@@ -184,7 +195,10 @@ export default function CatalogPage() {
 
   const selected = types.find((item) => item.code === typeCode);
   const createAllowed = can("create");
-  const placeName = (id: string) => neighborhoods.find((item) => item.id === id)?.texts?.find((text) => text.locale === "ar")?.name ?? "";
+  const labeledPlaces = placeLabels(neighborhoods);
+  const placeName = (id: string) => labeledPlaces.find((item) => item.id === id)?.label ?? "";
+  const personName = (id?: string) => (id ? staff.find((person) => person.id === id)?.display_name : "") ?? "";
+  const branchName = (id?: string) => (id ? branches.find((item) => item.id === id)?.name_ar : "") ?? "";
 
   return (
     <section className="grid gap-4">
@@ -367,10 +381,35 @@ export default function CatalogPage() {
                 {openProperty === item.id ? "إخفاء التفاصيل" : "التفاصيل"}
               </Button>
               {openProperty === item.id ? (
-                <div className="grid gap-1">
-                  <p>{item.address_en ? item.address_en : "بدون عنوان إنجليزي"}</p>
-                  <p>{placeName(item.neighborhood_id) || "اسم الحي غير متاح في هذه القائمة"}</p>
-                </div>
+                <dl className="grid gap-1">
+                  <div>النوع: {propertyTypeName("ar", item.type_code) || "غير معروف"}</div>
+                  <div>المساحة: {item.area_sqm} م²</div>
+                  <div>العنوان العربي: {item.address_ar || "بدون عنوان عربي"}</div>
+                  <div>العنوان الإنجليزي: {item.address_en || "بدون عنوان إنجليزي"}</div>
+                  <div>
+                    الحي: {placeName(item.neighborhood_id) || "اسم الحي غير متاح في هذه القائمة"}{" "}
+                    <a className="underline" href={`/admin/neighborhoods#${item.neighborhood_id}`}>
+                      سجل الحي
+                    </a>
+                  </div>
+                  <div>الفرع: {branchName(item.branch_id) || "غير مربوط بفرع في هذه القائمة"}</div>
+                  <div>مرجع التفويض: {item.delegation_ref || "غير مسجّل"}</div>
+                  <div>المالك: {personName(item.owner_user_id) || "غير ظاهر في قائمة الموظفين المتاحة لهذه الصلاحية"}</div>
+                  <div>
+                    أُنشئ:{" "}
+                    {item.created_at
+                      ? new Date(item.created_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })
+                      : "غير مسجّل"}
+                    {item.version ? ` · الإصدار ${item.version}` : ""}
+                  </div>
+                  {item.precise_lon != null && item.precise_lat != null ? (
+                    <div>
+                      إحداثيات دقيقة للسجل: {item.precise_lat} ، {item.precise_lon}. الموقع العام للزائر يبقى تقريبياً داخل الحي.
+                    </div>
+                  ) : (
+                    <div>لا توجد إحداثيات دقيقة على هذا السجل.</div>
+                  )}
+                </dl>
               ) : null}
             </article>
           ))}

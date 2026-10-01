@@ -302,7 +302,11 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
           {text.structure}
         </a>
       </div>
-      <p className="text-sm text-ink/80">{text.lead}</p>
+      <p className="text-sm text-ink/80">{locale === "en" ? "One grant at a time." : "منح فردي فقط."}</p>
+      <details className="text-sm text-ink/80">
+        <summary>{locale === "en" ? "Help" : "مساعدة"}</summary>
+        <p>{text.lead}</p>
+      </details>
       {loading ? <p className="text-sm">{text.loading}</p> : null}
       {error ? (
         <div className="grid gap-2">
@@ -335,17 +339,17 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
       </Label>
       {account ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <RuleList title={text.direct} items={account.direct} empty={text.empty} />
-          <RuleList title={text.inherited} items={account.inherited} empty={text.empty} />
-          <RuleList title={text.temporary} items={account.temporary} empty={text.empty} />
-          <RuleList title={text.deny} items={account.deny} empty={text.empty} />
+          <RuleList title={text.direct} items={account.direct} empty={text.empty} locale={locale} alsoIn={account.temporary.map((item) => item.id)} />
+          <RuleList title={text.inherited} items={account.inherited} empty={text.empty} locale={locale} />
+          <RuleList title={text.temporary} items={account.temporary} empty={text.empty} locale={locale} alsoIn={account.direct.map((item) => item.id)} />
+          <RuleList title={text.deny} items={account.deny} empty={text.empty} locale={locale} />
           <section className="rounded-lg border border-line bg-card p-3 sm:col-span-2">
             <h2 className="font-semibold">{text.breakTitle}</h2>
             {account.breaks.length === 0 ? <p className="text-sm text-ink/70">{text.empty}</p> : null}
             <ul className="grid gap-1 text-sm">
               {account.breaks.map((item) => (
                 <li key={`${item.node_id}-${item.domain}-${item.action}`}>
-                  {item.domain} · {item.action} · {item.reason}
+                  {nodeName(nodes.find((node) => node.id === item.node_id) ?? { id: item.node_id, kind: "", name_ar: "وحدة غير معروفة", name_en: "Unknown unit", status: "" })} · {labelOf(item.domain, locale)} · {labelOf(item.action, locale)} · {item.reason}
                 </li>
               ))}
             </ul>
@@ -360,7 +364,7 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
             <select className="rounded-md border border-line bg-card px-3 py-2 text-sm" value={domain} onChange={(event) => setDomain(event.target.value as (typeof domains)[number])}>
               {domains.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {labelOf(item, locale)}
                 </option>
               ))}
             </select>
@@ -370,7 +374,7 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
             <select className="rounded-md border border-line bg-card px-3 py-2 text-sm" value={action} onChange={(event) => setAction(event.target.value as (typeof actions)[number])}>
               {actions.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {labelOf(item, locale)}
                 </option>
               ))}
             </select>
@@ -405,7 +409,8 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
           <div>
             <h3 className="font-semibold">{text.result}</h3>
             <p>
-              {preview.allowed ? text.allowed : text.refused} · {text.layer}: {text.layers[preview.layer as keyof typeof text.layers] ?? preview.layer} · {preview.code}
+              {preview.allowed ? text.allowed : text.refused}. {text.layer}: {text.layers[preview.layer as keyof typeof text.layers] ?? preview.layer}. {previewReason(preview.code, locale)}
+              {preview.deny_source ? ` ${locale === "en" ? "Deny source" : "مصدر المنع"}: ${preview.deny_source === "deny-rule" ? (locale === "en" ? "a deny grant" : "منح منع") : preview.deny_source}.` : ""}
             </p>
           </div>
         ) : null}
@@ -473,41 +478,77 @@ export function PermissionScreen({ locale, framed = false }: { locale: Locale; f
   );
 }
 
-function labelOf(value: string) {
-  const names: Record<string, string> = {
-    geography: "الأحياء",
-    catalog: "العقارات",
-    organization: "الهيكل",
-    permissions: "الصلاحيات",
-    files: "الملفات",
-    identity: "الهوية",
-    clients: "العملاء",
-    visits: "الزيارات",
-    deals: "الصفقات",
-    finance: "المال",
-    messages: "الرسائل",
-    disputes: "النزاعات",
-    reports: "التقارير",
-    view: "عرض",
-    create: "إنشاء",
-    update: "تعديل",
-    approve: "اعتماد",
-    publish: "نشر",
-    archive: "أرشفة",
-    export: "تصدير",
-    allow: "سماح",
-    deny: "منع",
-    company: "الشركة",
-    branch: "الفرع",
-    department: "الإدارة",
-    team: "الفريق",
-    own: "السجل",
-    assigned: "المسند",
+function labelOf(value: string, locale: Locale = "ar") {
+  const names: Record<string, { ar: string; en: string }> = {
+    geography: { ar: "الأحياء", en: "Neighborhoods" },
+    catalog: { ar: "العقارات", en: "Properties" },
+    organization: { ar: "الهيكل", en: "Structure" },
+    permissions: { ar: "الصلاحيات", en: "Permissions" },
+    files: { ar: "الملفات", en: "Files" },
+    identity: { ar: "الهوية", en: "Identity" },
+    clients: { ar: "العملاء", en: "Clients" },
+    visits: { ar: "الزيارات", en: "Visits" },
+    deals: { ar: "الصفقات", en: "Deals" },
+    finance: { ar: "المال", en: "Finance" },
+    messages: { ar: "الرسائل", en: "Messages" },
+    disputes: { ar: "النزاعات", en: "Disputes" },
+    reports: { ar: "التقارير", en: "Reports" },
+    view: { ar: "عرض", en: "View" },
+    create: { ar: "إنشاء", en: "Create" },
+    update: { ar: "تعديل", en: "Update" },
+    approve: { ar: "اعتماد", en: "Approve" },
+    publish: { ar: "نشر", en: "Publish" },
+    archive: { ar: "أرشفة", en: "Archive" },
+    delete_draft: { ar: "حذف المسودة", en: "Delete draft" },
+    export: { ar: "تصدير", en: "Export" },
+    allow: { ar: "سماح", en: "Allow" },
+    deny: { ar: "منع", en: "Deny" },
+    company: { ar: "الشركة", en: "Company" },
+    branch: { ar: "الفرع", en: "Branch" },
+    department: { ar: "الإدارة", en: "Department" },
+    team: { ar: "الفريق", en: "Team" },
+    own: { ar: "السجل", en: "Own record" },
+    assigned: { ar: "المسند", en: "Assigned" },
   };
-  return names[value] ?? value;
+  const row = names[value];
+  if (!row) return value;
+  return locale === "en" ? row.en : row.ar;
 }
 
-function RuleList({ title, items, empty }: { title: string; items: Rule[]; empty: string }) {
+function previewReason(code: string, locale: Locale) {
+  const reasons: Record<string, { ar: string; en: string }> = {
+    allowed: { ar: "السبب: منح مطابق يسمح بهذا الإجراء على هذا السجل.", en: "Reason: a matching grant allows this action on this record." },
+    default_deny: { ar: "السبب: لا يوجد منح يسمح، والمنع هو الأصل.", en: "Reason: no grant allows it, so the default is deny." },
+    explicit_deny: { ar: "السبب: منع صريح يقدَّم على السماح.", en: "Reason: an explicit deny comes before an allow." },
+    outside_scope: { ar: "السبب: المنح لا يغطي نطاق هذا السجل.", en: "Reason: the grant does not cover this record's scope." },
+    separation_of_duties: { ar: "السبب: من أنشأ السجل لا يعتمد إجراءه الحساس.", en: "Reason: the person who created the record does not approve that sensitive action." },
+    step_up_required: { ar: "السبب: الإجراء يحتاج تحققاً إضافياً سارياً.", en: "Reason: the action needs a current extra verification." },
+    account_inactive: { ar: "السبب: الحساب غير نشط.", en: "Reason: the account is not active." },
+    company_mismatch: { ar: "السبب: السجل خارج شركة هذا الحساب.", en: "Reason: the record is outside this account's company." },
+  };
+  const row = reasons[code];
+  if (!row) return locale === "en" ? `Reason code: ${code}` : `رمز السبب: ${code}`;
+  return locale === "en" ? row.en : row.ar;
+}
+
+function riyadhStamp(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ar-SA", { timeZone: "Asia/Riyadh", dateStyle: "medium", timeStyle: "short" });
+}
+
+function grantState(item: Rule) {
+  const now = Date.now();
+  const start = item.starts_at ? new Date(item.starts_at).getTime() : Number.NaN;
+  const end = item.ends_at ? new Date(item.ends_at).getTime() : Number.NaN;
+  if (!Number.isNaN(start) && start > now) return "لم يبدأ";
+  if (!Number.isNaN(end) && end < now) return "منتهٍ";
+  return "ساري";
+}
+
+function RuleList({ title, items, empty, locale, alsoIn = [] }: { title: string; items: Rule[]; empty: string; locale: Locale; alsoIn?: string[] }) {
+  const repeated = new Set(alsoIn);
   return (
     <section className="rounded-lg border border-line bg-card p-3">
       <h2 className="font-semibold">{title}</h2>
@@ -515,9 +556,10 @@ function RuleList({ title, items, empty }: { title: string; items: Rule[]; empty
       <ul className="grid gap-1 text-sm">
         {items.map((item) => (
           <li key={`${title}-${item.id}-${item.layer}`}>
-            {labelOf(item.domain)} · {labelOf(item.action)} · {labelOf(item.effect)} · {labelOf(item.scope_kind)}
-            {item.starts_at ? ` · البداية ${item.starts_at}` : ""}
-            {item.ends_at ? ` · النهاية ${item.ends_at}${new Date(item.ends_at).getTime() < Date.now() ? " · منتهٍ" : " · سارٍ"}` : " · بلا نهاية"}
+            {labelOf(item.domain, locale)} · {labelOf(item.action, locale)} · {labelOf(item.effect, locale)} · {labelOf(item.scope_kind, locale)} · {grantState(item)}
+            {item.starts_at ? ` · من ${riyadhStamp(item.starts_at)}` : ""}
+            {item.ends_at ? ` · حتى ${riyadhStamp(item.ends_at)} بتوقيت الرياض` : " · بلا تاريخ انتهاء"}
+            {repeated.has(item.id) ? " · هذا المنح المؤقت سجل واحد، ويظهر هنا وفي القسم الآخر لأنه مباشر ومحدود بمدة." : ""}
           </li>
         ))}
       </ul>
