@@ -133,7 +133,15 @@ function paint(L: typeof import("leaflet"), group: LayerGroup, rings: number[][]
       .filter((pair) => pair.length >= 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]))
       .map(([lon, lat]) => L.latLng(lat, lon));
     if (latlngs.length < 3) continue;
-    L.polygon(latlngs, { color: "#0f172a", weight: 1.5, fillOpacity: 0 }).addTo(group);
+    L.polygon(latlngs, {
+      color: "#047857",
+      weight: 1.5,
+      opacity: 0.9,
+      fill: true,
+      fillColor: "#10b981",
+      fillOpacity: 0.38,
+      interactive: false,
+    }).addTo(group);
   }
   for (const dot of dots) {
     if (!Number.isFinite(dot.lon) || !Number.isFinite(dot.lat)) continue;
