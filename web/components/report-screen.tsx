@@ -35,7 +35,7 @@ type Report = {
   measures: Measure[];
 };
 
-const codes = ["visits", "deals", "occupancy", "bookings", "payments"] as const;
+const codes = ["visits", "deals", "occupancy", "bookings", "payments", "movements"] as const;
 
 const copy = {
   ar: {
@@ -69,7 +69,8 @@ const copy = {
       deals: "الصفقات",
       occupancy: "الإشغال",
       bookings: "الحجوزات",
-      payments: "المدفوعات",
+      payments: "تقرير مدفوعات الحجوزات التي يقع وصول ضيفها خلال الفترة",
+      movements: "تقرير الحركات المالية التي حدثت خلال الفترة بتاريخ الدفع",
     },
     transactions: { "": "الكل", sale: "بيع", annual: "سنوي", monthly: "شهري", daily: "يومي" },
     undefined: "غير معرّف",
@@ -79,7 +80,9 @@ const copy = {
       occupancy: "تُحسب ليالي الوحدات المؤكدة التي تتقاطع إقامتها مع الفترة. الوصول والمغادرة يحددان التقاطع. نسبة الإشغال غير محسوبة.",
       bookings: "أساس التاريخ هو تاريخ وصول الضيف. ترك الحالة على الافتراضي يحسب المؤكد فقط.",
       payments:
-        "هذه مدفوعات حجوزات يقع وصول ضيفها داخل الفترة، وليست حركات مالية بتاريخ الدفع. ملف المتطلبات لم يحسم الوصول مقابل تاريخ الدفع، لذلك بقي الحساب كما هو.",
+        "أساس التاريخ هو وصول الضيف. هذا تقرير مدفوعات الحجوزات التي يقع وصول ضيفها خلال الفترة، وحسابه بقي كما هو.",
+      movements:
+        "أساس التاريخ هو تاريخ الدفع بتوقيت الرياض، أي وقت تسجيل القيد أو المحاولة أو الاسترداد. ليس وصول الضيف. لا يُعلَّم الدفع ولا الاسترداد ولا التسوية على أنه مال تحرك.",
     },
     placesError: "تعذر تحميل الأحياء. القائمة لا تُعرض كأنها فارغة.",
     placesCap: "تظهر أول 100 حي حسب صلاحية العرض.",
@@ -115,7 +118,8 @@ const copy = {
       deals: "Deals",
       occupancy: "Occupancy",
       bookings: "Bookings",
-      payments: "Payments",
+      payments: "Booking payments whose guest arrival falls in the period",
+      movements: "Financial movements dated by payment date",
     },
     transactions: { "": "Any", sale: "Sale", annual: "Annual", monthly: "Monthly", daily: "Daily" },
     undefined: "Not defined",
@@ -125,7 +129,9 @@ const copy = {
       occupancy: "Occupied nights are confirmed stays that overlap the period. Arrival and departure set the overlap. An occupancy rate is not calculated.",
       bookings: "The date basis is the guest arrival. Leaving the status on the default counts confirmed bookings only.",
       payments:
-        "These are payments for bookings whose guest arrival falls in the period, not money movements by payment date. The requirements file does not settle arrival versus payment date, so the calculation was left unchanged.",
+        "The date basis is the guest arrival. This is the report of booking payments whose guest arrival falls in the period, and its calculation is unchanged.",
+      movements:
+        "The date basis is the payment date in Riyadh time: when the journal, attempt, or refund was recorded. It is not the guest arrival. A payment, a refund, and a settlement are not marked as money moved.",
     },
     placesError: "Neighborhoods could not be loaded. The list is not shown as if it were empty.",
     placesCap: "The first 100 neighborhoods available to this view permission are shown.",
@@ -159,6 +165,11 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
       distinct_units: locale === "en" ? "Distinct units" : "وحدات مختلفة",
       occupancy_rate: locale === "en" ? "Occupancy rate" : "نسبة الإشغال",
       occupied_nights: locale === "en" ? "Occupied nights" : "ليالي الإشغال",
+      movement_count: locale === "en" ? "Ledger movements" : "عدد الحركات الدفترية",
+      payment_record_count: locale === "en" ? "Payment records" : "سجلات الدفع",
+      refund_record_count: locale === "en" ? "Refund records" : "سجلات الاسترداد",
+      marked_money_moved: locale === "en" ? "Marked as money moved" : "ما عُلّم مالاً تحرك",
+      arrival_differs_count: locale === "en" ? "Payment date differs from arrival" : "تاريخ الدفع يختلف عن الوصول",
     };
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
@@ -235,7 +246,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         <Label>
           {text.code}
           <select
-            className="rounded-md border border-line bg-paper px-2 py-2"
+            className="w-full rounded-md border border-line bg-paper px-2 py-2"
             value={code}
             onChange={(event) => {
               setCode(event.target.value as (typeof codes)[number]);
@@ -412,6 +423,7 @@ function statusChoices(code: (typeof codes)[number]) {
     ];
   }
   if (code === "occupancy") return [{ value: "", ar: "المؤكد فقط", en: "Confirmed only" }];
+  if (code === "movements") return [{ value: "", ar: "الكل", en: "Any" }];
   if (code === "bookings") {
     return [
       { value: "", ar: "المؤكد (الافتراضي)", en: "Confirmed (default)" },
@@ -439,6 +451,10 @@ function readable(text: string, locale: Locale) {
     ["visits.appointments.starts_at", ar ? "موعد بداية الزيارة" : "Visit start"],
     ["deals.deals.created_at", ar ? "وقت إنشاء الصفقة" : "Deal creation time"],
     ["stays.bookings.arrival", ar ? "تاريخ وصول الحجز" : "Booking arrival date"],
+    [
+      "finance.journals.created_at; finance.attempts.created_at; finance.refunds.created_at",
+      ar ? "وقت تسجيل القيد والمحاولة والاسترداد" : "When the journal, attempt, or refund was recorded",
+    ],
     ["provider_clearing", ar ? "حساب التحصيل" : "the collection account"],
     ["pending_review", ar ? "قيد المراجعة" : "pending review"],
     ["mismatch_review", ar ? "اختلاف المبلغ" : "amount mismatch"],

@@ -69,6 +69,8 @@ func (s Service) Run(ctx context.Context, code, company string, from, to string,
 		return s.bookings(ctx, report, company, period, filter)
 	case "payments":
 		return s.payments(ctx, report, company, period, filter)
+	case "movements":
+		return s.movements(ctx, report, company, period, filter)
 	default:
 		return Report{}, platform.E("not_found", 404)
 	}
@@ -312,6 +314,101 @@ func (s Service) payments(ctx context.Context, report Report, company string, pe
 		{Code: "collected_count", Value: collected, Unit: "count", DefinitionAR: "محاولات حالتها collected.", DefinitionEN: "Attempts whose status is collected."},
 		{Code: "collected_minor", Value: collectedMinor, Unit: "minor", DefinitionAR: "مجموع مدين provider_clearing بالهللة. هذا تحصيل من الدفتر وليس عمولة ولا مستحق إقامة.", DefinitionEN: "Sum of provider_clearing debits in halalas. This is ledger collection, not a commission and not stay due."},
 		{Code: "collected_ratio", Value: Ratio(collected, attempts), Unit: "ratio", DefinitionAR: "عدد المحصل مقسوماً على عدد المحاولات. يفرغ إذا لم توجد محاولة.", DefinitionEN: "Collected attempts divided by attempts. Empty when there are no attempts."},
+	}
+	return report, nil
+}
+
+func (s Service) movements(ctx context.Context, report Report, company string, period Period, filter Filter) (Report, error) {
+	var movementCount, paymentRecords, refundRecords, arrivalDiffers int64
+	err := s.Pool.QueryRow(ctx, `
+		SELECT count(*)::bigint
+		FROM finance.journals j
+		JOIN stays.bookings b ON b.id = j.stay_id
+		JOIN catalog.listings l ON l.id = b.listing_id
+		WHERE b.company_id = $1::uuid
+		  AND j.created_at >= $2 AND j.created_at < $3
+		  AND ($4::uuid IS NULL OR l.branch_id = $4::uuid)
+		  AND ($5::uuid IS NULL OR l.neighborhood_id = $5::uuid)
+		  AND ($6 = '' OR b.transaction_type = $6)
+	`, company, period.StartAt, period.EndAt, uuidOrNil(filter.BranchID), uuidOrNil(filter.NeighborhoodID), filter.Transaction).Scan(&movementCount)
+	if err != nil {
+		return Report{}, err
+	}
+	err = s.Pool.QueryRow(ctx, `
+		SELECT count(*)::bigint
+		FROM finance.attempts a
+		JOIN stays.bookings b ON b.id = a.stay_id
+		JOIN catalog.listings l ON l.id = b.listing_id
+		WHERE b.company_id = $1::uuid
+		  AND a.created_at >= $2 AND a.created_at < $3
+		  AND ($4::uuid IS NULL OR l.branch_id = $4::uuid)
+		  AND ($5::uuid IS NULL OR l.neighborhood_id = $5::uuid)
+		  AND ($6 = '' OR b.transaction_type = $6)
+	`, company, period.StartAt, period.EndAt, uuidOrNil(filter.BranchID), uuidOrNil(filter.NeighborhoodID), filter.Transaction).Scan(&paymentRecords)
+	if err != nil {
+		return Report{}, err
+	}
+	err = s.Pool.QueryRow(ctx, `
+		SELECT count(*)::bigint
+		FROM finance.refunds r
+		JOIN stays.bookings b ON b.id = r.stay_id
+		JOIN catalog.listings l ON l.id = b.listing_id
+		WHERE b.company_id = $1::uuid
+		  AND r.created_at >= $2 AND r.created_at < $3
+		  AND ($4::uuid IS NULL OR l.branch_id = $4::uuid)
+		  AND ($5::uuid IS NULL OR l.neighborhood_id = $5::uuid)
+		  AND ($6 = '' OR b.transaction_type = $6)
+	`, company, period.StartAt, period.EndAt, uuidOrNil(filter.BranchID), uuidOrNil(filter.NeighborhoodID), filter.Transaction).Scan(&refundRecords)
+	if err != nil {
+		return Report{}, err
+	}
+	err = s.Pool.QueryRow(ctx, `
+		SELECT count(*)::bigint
+		FROM finance.attempts a
+		JOIN stays.bookings b ON b.id = a.stay_id
+		JOIN catalog.listings l ON l.id = b.listing_id
+		WHERE b.company_id = $1::uuid
+		  AND a.created_at >= $2 AND a.created_at < $3
+		  AND (b.arrival < $7::date OR b.arrival >= $8::date)
+		  AND ($4::uuid IS NULL OR l.branch_id = $4::uuid)
+		  AND ($5::uuid IS NULL OR l.neighborhood_id = $5::uuid)
+		  AND ($6 = '' OR b.transaction_type = $6)
+	`, company, period.StartAt, period.EndAt, uuidOrNil(filter.BranchID), uuidOrNil(filter.NeighborhoodID), filter.Transaction, period.From, period.End).Scan(&arrivalDiffers)
+	if err != nil {
+		return Report{}, err
+	}
+	report.DefinitionAR = "حركات دفترية وقع وقت تسجيلها بتاريخ الدفع داخل النافذة بتوقيت الرياض."
+	report.DefinitionEN = "Ledger movements whose recording time falls in the window by payment date, in Riyadh time."
+	report.Source = "finance.journals.created_at; finance.attempts.created_at; finance.refunds.created_at"
+	report.ExclusionsAR = "وصول الضيف لا يختار الصفوف. محاولة الدفع وطلب الاسترداد والتسوية لا تُعلَّم مالاً تحرك."
+	report.ExclusionsEN = "Guest arrival does not select the rows. A payment attempt, a refund, and a settlement are not marked as money moved."
+	report.Reconciliation = "not_applicable"
+	report.Measures = []Measure{
+		{
+			Code: "movement_count", Value: movementCount, Unit: "count",
+			DefinitionAR: "عدد القيود التي وقع وقت تسجيلها داخل النافذة. هذا عدّ بتاريخ الدفع، وليس بتاريخ وصول الضيف.",
+			DefinitionEN: "Journals whose recording time is inside the window. The count uses the payment date, not the guest arrival.",
+		},
+		{
+			Code: "payment_record_count", Value: paymentRecords, Unit: "count",
+			DefinitionAR: "عدد محاولات الدفع بتاريخ تسجيلها. المحاولة ليست مالاً تحرك.",
+			DefinitionEN: "Payment attempts recorded inside the window. An attempt is not money moved.",
+		},
+		{
+			Code: "refund_record_count", Value: refundRecords, Unit: "count",
+			DefinitionAR: "عدد سجلات الاسترداد بتاريخ إنشائها. السجل ليس مالاً تحرك.",
+			DefinitionEN: "Refund records created inside the window. A refund record is not money moved.",
+		},
+		{
+			Code: "marked_money_moved", Value: int64(0), Unit: "count",
+			DefinitionAR: "لا يُعلَّم أي دفع أو استرداد أو تسوية على أنه مال تحرك.",
+			DefinitionEN: "No payment, refund, or settlement is marked as money moved.",
+		},
+		{
+			Code: "arrival_differs_count", Value: arrivalDiffers, Unit: "count",
+			DefinitionAR: "محاولات دفع داخل النافذة بتاريخ الدفع، ووصول ضيفها خارج النافذة. هذه المحاولات ليست مالاً تحرك.",
+			DefinitionEN: "Payment attempts inside the window by payment date whose guest arrival is outside the window. These attempts are not money moved.",
+		},
 	}
 	return report, nil
 }
