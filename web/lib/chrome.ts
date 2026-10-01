@@ -7,7 +7,7 @@ export const chrome = {
     language: "English",
     admin: "لوحة العمل",
     home: "الأحياء",
-    request: "طلب عقار",
+    request: "عرض - طلب عقار",
     account: "حسابي",
     search: "بحث وخريطة",
     favorites: "المفضلة",

@@ -8,7 +8,7 @@ import type { HomePayload, Locale } from "@/lib/types";
 
 const copy = {
   ar: {
-    title: "طلب عقار",
+    title: "عرض - طلب عقار",
     lead: "صف نوع المعاملة والحي والموعد والمواصفات. الميزانية اختيارية وتُكتب بالريال كما تدخلها. لا تُضاف عمولة أو رسم.",
     transaction: "نوع المعاملة",
     sale: "بيع",
