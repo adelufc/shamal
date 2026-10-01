@@ -39,3 +39,59 @@ h3 a,
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: Tahoma, sans-serif;
+  background: #e2e8f0;
+  z-index: 0;
+}
+
+.leaflet-container img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-div-icon.shamal-marker {
+  background: transparent;
+  border: none;
+}
+
+.shamal-pin {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: Tahoma, sans-serif;
+  white-space: nowrap;
+}
+
+.shamal-count {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.shamal-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #0f172a;
+}
+
+.shamal-label {
+  color: #0f172a;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}

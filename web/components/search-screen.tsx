@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Failure, api } from "@/components/admin-shell";
 import { PublicFrame } from "@/components/public-frame";
@@ -9,6 +9,7 @@ import { Input, Label } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
 import { money } from "@/lib/chrome";
 import { propertyTypeName } from "@/lib/property-types";
+import { StreetMap, type StreetMapHandle } from "@/components/street-map";
 import type { Locale } from "@/lib/types";
 
 type Place = {
@@ -548,7 +549,8 @@ function ListingMap({
   onSearchArea: (box: Box) => void;
 }) {
   const text = copy[locale];
-  const [zoom, setZoom] = useState(0);
+  const mapRef = useRef<StreetMapHandle>(null);
+  const [detail, setDetail] = useState(false);
   const drawn = useMemo(() => {
     try {
       return shapes(places);
@@ -556,50 +558,28 @@ function ListingMap({
       return null;
     }
   }, [places]);
-  const dots = useMemo(() => mapDots(markers, clusters, forceClusters, zoom, locale), [markers, clusters, forceClusters, zoom, locale]);
+  const dots = useMemo(
+    () => mapDots(markers, clusters, forceClusters, detail ? 1 : 0, locale),
+    [markers, clusters, forceClusters, detail, locale],
+  );
   if (!drawn) return <p className="rounded-lg border border-line bg-card p-4 text-sm">{text.mapUnavailable}</p>;
-  const view = zoomBox(drawn.bounds, zoom);
-  const clustered = forceClusters || zoom === 0;
   return (
     <section className="grid gap-2">
-      <svg viewBox="0 0 640 420" role="img" className="h-80 w-full rounded-lg border border-line bg-olive-soft" aria-label={text.title}>
-        {drawn.rings.map((ring, index) => (
-          <polygon key={index} points={ring.map(([lon, lat]) => point(lon, lat, view)).join(" ")} fill="#ffffff" stroke="#0f172a" strokeWidth="1" />
-        ))}
-        {dots.map((item) => {
-          const [x, y] = point(item.lon, item.lat, view).split(",");
-          const label = item.label ? (
-            <text x={Number(x) + 18} y={y} dy="4" fill="#0f172a" fontSize="12">
-              {item.label}
-            </text>
-          ) : null;
-          if (clustered) {
-            return (
-              <g key={item.key}>
-                <circle cx={x} cy={y} r="14" fill="#0f172a" />
-                <text x={x} y={y} textAnchor="middle" dy="4" fill="#ffffff" fontSize="12">
-                  {item.count}
-                </text>
-                {label}
-              </g>
-            );
-          }
-          return (
-            <g key={item.key}>
-              <circle cx={x} cy={y} r="5" fill="#0f172a" />
-              {label}
-            </g>
-          );
-        })}
-      </svg>
+      <StreetMap ref={mapRef} label={text.title} bounds={drawn.bounds} rings={drawn.rings} dots={dots} onDetail={setDetail} />
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="ghost" onClick={() => setZoom((value) => Math.min(value + 1, 4))}>
+        <Button type="button" variant="ghost" onClick={() => mapRef.current?.zoomIn()}>
           {text.zoomIn}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setZoom((value) => Math.max(value - 1, 0))}>
+        <Button type="button" variant="ghost" onClick={() => mapRef.current?.zoomOut()}>
           {text.zoomOut}
         </Button>
-        <Button type="button" onClick={() => onSearchArea(view)}>
+        <Button
+          type="button"
+          onClick={() => {
+            const box = mapRef.current?.bounds();
+            if (box) onSearchArea(box);
+          }}
+        >
           {text.searchHere}
         </Button>
         {areaActive ? (
@@ -644,7 +624,7 @@ function mapDots(markers: Marker[], clusters: Cluster[], forceClusters: boolean,
   if (forceClusters) {
     return clusters
       .filter((item) => Number.isFinite(item.lon) && Number.isFinite(item.lat))
-      .map((item) => ({ key: item.neighborhood_id, lon: item.lon as number, lat: item.lat as number, count: item.count, label: "" }));
+      .map((item) => ({ key: item.neighborhood_id, lon: item.lon as number, lat: item.lat as number, count: item.count, label: "", numbered: true }));
   }
   if (zoom === 0) {
     const groups = new Map<string, { key: string; lon: number; lat: number; count: number; codes: string[] }>();
@@ -660,9 +640,9 @@ function mapDots(markers: Marker[], clusters: Cluster[], forceClusters: boolean,
       current.codes.push(marker.type_code);
       groups.set(marker.neighborhood_id, current);
     }
-    return [...groups.values()].map((item) => ({ key: item.key, lon: item.lon, lat: item.lat, count: item.count, label: labelFor(item.codes) }));
+    return [...groups.values()].map((item) => ({ key: item.key, lon: item.lon, lat: item.lat, count: item.count, label: labelFor(item.codes), numbered: true }));
   }
-  return markers.map((item) => ({ key: item.id, lon: item.lon, lat: item.lat, count: 1, label: propertyTypeName(locale, item.type_code) }));
+  return markers.map((item) => ({ key: item.id, lon: item.lon, lat: item.lat, count: 1, label: propertyTypeName(locale, item.type_code), numbered: false }));
 }
 
 function shapes(places: Place[]) {
@@ -692,21 +672,6 @@ function shapes(places: Place[]) {
   bounds.south -= padY;
   bounds.north += padY;
   return { rings, bounds };
-}
-
-function zoomBox(bounds: Box, zoom: number): Box {
-  const scale = 2 ** zoom;
-  const width = (bounds.east - bounds.west) / scale;
-  const height = (bounds.north - bounds.south) / scale;
-  const cx = (bounds.east + bounds.west) / 2;
-  const cy = (bounds.north + bounds.south) / 2;
-  return { west: cx - width / 2, east: cx + width / 2, south: cy - height / 2, north: cy + height / 2 };
-}
-
-function point(lon: number, lat: number, box: Box) {
-  const x = ((lon - box.west) / (box.east - box.west)) * 640;
-  const y = ((box.north - lat) / (box.north - box.south)) * 420;
-  return `${x.toFixed(1)},${y.toFixed(1)}`;
 }
 
 function riyalsFromMinor(raw: string | null) {
