@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { ApiError, Failure, api } from "@/components/admin-shell";
 import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
@@ -173,28 +173,32 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
     };
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
+  const requestSeq = useRef(0);
 
-  async function load(next = code) {
+  async function load(query: { code: string; from: string; to: string; branch: string; neighborhood: string; transaction: string; status: string }) {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
-    const query = new URLSearchParams();
-    if (from) query.set("from", from);
-    if (to) query.set("to", to);
-    if (branch) query.set("branch_id", branch);
-    if (neighborhood) query.set("neighborhood_id", neighborhood);
-    if (transaction) query.set("transaction", transaction);
-    if (status) query.set("status", status);
-    const suffix = query.toString() ? `?${query}` : "";
+    const params = new URLSearchParams();
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    if (query.branch) params.set("branch_id", query.branch);
+    if (query.neighborhood) params.set("neighborhood_id", query.neighborhood);
+    if (query.transaction) params.set("transaction", query.transaction);
+    if (query.status) params.set("status", query.status);
+    const suffix = params.toString() ? `?${params}` : "";
     try {
-      const body = await api<Report>(`/api/v1/reports/${next}${suffix}`, { headers: { "Accept-Language": locale } });
+      const body = await api<Report>(`/api/v1/reports/${query.code}${suffix}`, { headers: { "Accept-Language": locale } });
+      if (seq !== requestSeq.current) return;
       setReport(body);
-      if (!from && body.period_start) setFrom(body.period_start.slice(0, 10));
-      if (!to && body.period_end) setTo(body.period_end.slice(0, 10));
+      setFrom((current) => query.from || current || body.period_start.slice(0, 10));
+      setTo((current) => query.to || current || body.period_end.slice(0, 10));
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       setReport(null);
       setError(err);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }
 
@@ -213,7 +217,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
     api<{ nodes: { id: string; kind: string; name_ar: string; name_en: string; status: string }[] }>("/api/v1/org/structure")
       .then((structure) => setBranches(structure.nodes.filter((node) => node.kind === "branch" && node.status === "active")))
       .catch(() => setBranches([]));
-    void load("visits");
+    void load({ code: "visits", from: "", to: "", branch: "", neighborhood: "", transaction: "", status: "" });
     // The first read uses the server's Riyadh day when the date fields are empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
@@ -226,9 +230,26 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
     setTo(stamp(end));
   }
 
-  function submit(event: FormEvent) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void load(code);
+    const data = new FormData(event.currentTarget);
+    const next = {
+      code: String(data.get("code") ?? code),
+      from: String(data.get("from") ?? ""),
+      to: String(data.get("to") ?? ""),
+      branch: String(data.get("branch_id") ?? ""),
+      neighborhood: String(data.get("neighborhood_id") ?? ""),
+      transaction: String(data.get("transaction") ?? ""),
+      status: String(data.get("status") ?? ""),
+    };
+    setCode(next.code as (typeof codes)[number]);
+    setFrom(next.from);
+    setTo(next.to);
+    setBranch(next.branch);
+    setNeighborhood(next.neighborhood);
+    setTransaction(next.transaction);
+    setStatus(next.status);
+    void load(next);
   }
 
   const body = (
@@ -247,6 +268,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
           {text.code}
           <select
             className="w-full rounded-md border border-line bg-paper px-2 py-2"
+            name="code"
             value={code}
             onChange={(event) => {
               setCode(event.target.value as (typeof codes)[number]);
@@ -262,7 +284,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.transaction}
-          <select className="rounded-md border border-line bg-paper px-2 py-2" value={transaction} onChange={(event) => setTransaction(event.target.value)}>
+          <select className="rounded-md border border-line bg-paper px-2 py-2" name="transaction" value={transaction} onChange={(event) => setTransaction(event.target.value)}>
             {Object.entries(text.transactions).map(([value, label]) => (
               <option key={value || "any"} value={value}>
                 {label}
@@ -272,15 +294,15 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.from}
-          <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          <Input type="date" name="from" dir="ltr" value={from} onChange={(event) => setFrom(event.target.value)} />
         </Label>
         <Label>
           {text.to}
-          <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          <Input type="date" name="to" dir="ltr" value={to} onChange={(event) => setTo(event.target.value)} />
         </Label>
         <Label>
           {text.neighborhood}
-          <select className="w-full rounded-md border border-line bg-paper px-2 py-2" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)}>
+          <select className="w-full rounded-md border border-line bg-paper px-2 py-2" name="neighborhood_id" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)}>
             <option value="">{text.any}</option>
             {places.map((place) => (
               <option key={place.id} value={place.id}>
@@ -292,7 +314,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.status}
-          <select className="min-h-11 rounded-lg border border-action bg-card px-3" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select className="min-h-11 rounded-lg border border-action bg-card px-3" name="status" value={status} onChange={(event) => setStatus(event.target.value)}>
             {statusChoices(code).map((item) => (
               <option key={`${code}-${item.value || "any"}`} value={item.value}>
                 {locale === "en" ? item.en : item.ar}
@@ -302,7 +324,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.branch}
-          <select className="rounded-md border border-line bg-paper px-2 py-2" value={branch} onChange={(event) => setBranch(event.target.value)}>
+          <select className="rounded-md border border-line bg-paper px-2 py-2" name="branch_id" value={branch} onChange={(event) => setBranch(event.target.value)}>
             <option value="">{text.any}</option>
             {branches.map((item) => (
               <option key={item.id} value={item.id}>
