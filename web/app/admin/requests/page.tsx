@@ -57,33 +57,37 @@ export default function RequestsPage() {
   const [total, setTotal] = useState(0);
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
+  const [appliedQ, setAppliedQ] = useState(params.get("q") ?? "");
   const [unassigned, setUnassigned] = useState(params.get("unassigned") === "1");
   const [page, setPage] = useState(Number(params.get("page") || "1") || 1);
+  const [refresh, setRefresh] = useState(0);
   const can = (action: string) => (me?.actions.clients ?? []).includes(action);
   const canDeal = (me?.actions.deals ?? []).includes("create");
-
-  async function load(nextPage = page, nextQuery = q, onlyOpen = unassigned) {
-    const query = new URLSearchParams({ page_size: "25", page: String(nextPage) });
-    if (nextQuery.trim()) query.set("q", nextQuery.trim());
-    if (onlyOpen) query.set("unassigned", "1");
-    const body = await api<{ items: Item[]; total: number }>(`/api/v1/clients/requests?${query}`);
-    setItems(body.items);
-    setTotal(body.total);
-    setState("ready");
-  }
 
   useEffect(() => {
     if (!me) return;
     let stop = false;
-    load(page, q, unassigned).catch((caught) => {
-      if (stop) return;
-      setError(caught);
-      setState("error");
-    });
+    const query = new URLSearchParams({ page_size: "25", page: String(page) });
+    if (appliedQ.trim()) query.set("q", appliedQ.trim());
+    if (unassigned) query.set("unassigned", "1");
+    setItems([]);
+    setState("loading");
+    api<{ items: Item[]; total: number }>(`/api/v1/clients/requests?${query}`)
+      .then((body) => {
+        if (stop) return;
+        setItems(body.items);
+        setTotal(body.total);
+        setState("ready");
+      })
+      .catch((caught) => {
+        if (stop) return;
+        setError(caught);
+        setState("error");
+      });
     return () => {
       stop = true;
     };
-  }, [me, page, unassigned]);
+  }, [me, page, unassigned, appliedQ, refresh]);
 
   async function move(item: Item, to: string) {
     setError(null);
@@ -92,7 +96,7 @@ export default function RequestsPage() {
         method: "POST",
         body: JSON.stringify({ version: item.version, to, reason: reasons[item.id] ?? "" }),
       });
-      await load();
+      setRefresh((value) => value + 1);
     } catch (caught) {
       setError(caught);
     }
@@ -105,7 +109,7 @@ export default function RequestsPage() {
         method: "POST",
         body: JSON.stringify({ version: item.version }),
       });
-      await load();
+      setRefresh((value) => value + 1);
     } catch (caught) {
       setError(caught);
     }
@@ -119,14 +123,13 @@ export default function RequestsPage() {
         method: "POST",
         body: JSON.stringify({ version: item.version, assignee_id: me.id }),
       });
-      await load();
+      setRefresh((value) => value + 1);
     } catch (caught) {
       setError(caught);
     }
   }
 
   if (!can("view")) return <p className="text-sm">لا توجد صلاحية لعرض الطلبات.</p>;
-  if (state === "loading") return <p className="text-sm">جارٍ التحميل…</p>;
   if (state === "error" && items.length === 0) return <Failure error={error} />;
 
   return (
@@ -137,8 +140,8 @@ export default function RequestsPage() {
         className="flex flex-wrap items-end gap-2"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
+          setAppliedQ(q);
           setPage(1);
-          void load(1, q, unassigned);
         }}
       >
         <label className="grid gap-2 text-sm">
@@ -146,16 +149,29 @@ export default function RequestsPage() {
           <Input value={q} onChange={(event) => setQ(event.target.value)} />
         </label>
         <label className="flex min-h-11 items-center gap-2 text-sm">
-          <input type="checkbox" checked={unassigned} onChange={(event) => setUnassigned(event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={unassigned}
+            onChange={(event) => {
+              setUnassigned(event.target.checked);
+              setPage(1);
+            }}
+          />
           غير المسند
         </label>
         <Button type="submit">بحث</Button>
       </form>
-      <p className="text-sm">{total} طلب</p>
+      <p className="text-sm">
+        {state === "loading" && items.length === 0
+          ? "جارٍ التحميل…"
+          : total === 0
+            ? "عرض 0 من 0"
+            : `عرض ${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} من ${total}`}
+      </p>
       {error ? <Failure error={error} /> : null}
       {items.length === 0 ? <p className="text-sm">لا توجد طلبات.</p> : null}
       {items.map((item) => (
-        <article key={item.id} className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
+        <article key={item.id} data-request-id={item.id} className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">{item.display_name}</h2>
             <span>{stageLabel[item.stage] ?? item.stage}</span>
@@ -213,6 +229,14 @@ export default function RequestsPage() {
           ) : null}
         </article>
       ))}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          السابق
+        </Button>
+        <Button type="button" variant="ghost" disabled={page * 25 >= total} onClick={() => setPage(page + 1)}>
+          التالي
+        </Button>
+      </div>
     </section>
   );
 }

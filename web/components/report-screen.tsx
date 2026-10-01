@@ -47,7 +47,6 @@ const copy = {
     neighborhood: "الحي",
     transaction: "نوع المعاملة",
     status: "الحالة",
-    basis: "أساس التاريخ هو وصول الضيف للحجز، وليس تاريخ حركة المال.",
     today: "اليوم",
     week: "الأسبوع",
     month: "الشهر",
@@ -73,6 +72,16 @@ const copy = {
     },
     transactions: { "": "الكل", sale: "بيع", annual: "سنوي", monthly: "شهري", daily: "يومي" },
     undefined: "غير معرّف",
+    basis: {
+      visits: "أساس التاريخ هو بداية موعد الزيارة بتوقيت الرياض. ليس تاريخ وصول الضيف ولا تاريخ الدفع.",
+      deals: "أساس التاريخ هو وقت إنشاء الصفقة. ليس تاريخ وصول الضيف ولا تاريخ الدفع. صفقات الاختبار غير داخلة.",
+      occupancy: "تُحسب ليالي الوحدات المؤكدة التي تتقاطع إقامتها مع الفترة. الوصول والمغادرة يحددان التقاطع. نسبة الإشغال غير محسوبة.",
+      bookings: "أساس التاريخ هو تاريخ وصول الضيف. ترك الحالة على الافتراضي يحسب المؤكد فقط.",
+      payments:
+        "هذه مدفوعات حجوزات يقع وصول ضيفها داخل الفترة، وليست حركات مالية بتاريخ الدفع. ملف المتطلبات لم يحسم الوصول مقابل تاريخ الدفع، لذلك بقي الحساب كما هو.",
+    },
+    placesError: "تعذر تحميل الأحياء. القائمة لا تُعرض كأنها فارغة.",
+    placesCap: "تظهر أول 100 حي حسب صلاحية العرض.",
   },
   en: {
     title: "Operational reports",
@@ -84,7 +93,6 @@ const copy = {
     neighborhood: "Neighborhood",
     transaction: "Transaction",
     status: "Status",
-    basis: "The date basis is the guest arrival of the booking, not a money-movement date.",
     today: "Today",
     week: "Week",
     month: "Month",
@@ -110,6 +118,16 @@ const copy = {
     },
     transactions: { "": "Any", sale: "Sale", annual: "Annual", monthly: "Monthly", daily: "Daily" },
     undefined: "Not defined",
+    basis: {
+      visits: "The date basis is the visit start in Riyadh time. It is not the guest arrival and not a payment date.",
+      deals: "The date basis is when the deal was created. It is not the guest arrival and not a payment date. Test deals are excluded.",
+      occupancy: "Occupied nights are confirmed stays that overlap the period. Arrival and departure set the overlap. An occupancy rate is not calculated.",
+      bookings: "The date basis is the guest arrival. Leaving the status on the default counts confirmed bookings only.",
+      payments:
+        "These are payments for bookings whose guest arrival falls in the period, not money movements by payment date. The requirements file does not settle arrival versus payment date, so the calculation was left unchanged.",
+    },
+    placesError: "Neighborhoods could not be loaded. The list is not shown as if it were empty.",
+    placesCap: "The first 100 neighborhoods available to this view permission are shown.",
   },
 } as const;
 
@@ -123,6 +141,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
   const [transaction, setTransaction] = useState("");
   const [status, setStatus] = useState("");
   const [places, setPlaces] = useState<{ id: string; name: string }[]>([]);
+  const [placesNote, setPlacesNote] = useState("");
   const [branches, setBranches] = useState<{ id: string; name_ar: string; name_en: string }[]>([]);
     const [report, setReport] = useState<Report | null>(null);
     const measureName: Record<string, string> = {
@@ -130,6 +149,13 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
       attempt_count: locale === "en" ? "Attempts" : "عدد المحاولات",
       collected_minor: locale === "en" ? "Collected" : "المحصّل",
       not_run: locale === "en" ? "Not run" : "لم يُشغَّل",
+      agreement_minor: locale === "en" ? "Agreement amount" : "مبلغ الاتفاق",
+      stay_due_minor: locale === "en" ? "Stay amount due" : "مستحق الإقامة",
+      collected_count: locale === "en" ? "Collected attempts" : "عدد المحصّل",
+      pending_review_count: locale === "en" ? "Pending review" : "قيد المراجعة",
+      mismatch_review_count: locale === "en" ? "Amount mismatch" : "اختلاف المبلغ",
+      collected_ratio: locale === "en" ? "Collected share" : "نسبة المحصّل",
+      distinct_units: locale === "en" ? "Distinct units" : "وحدات مختلفة",
       occupancy_rate: locale === "en" ? "Occupancy rate" : "نسبة الإشغال",
       occupied_nights: locale === "en" ? "Occupied nights" : "ليالي الإشغال",
     };
@@ -161,9 +187,20 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
   }
 
   useEffect(() => {
-    api<{ neighborhoods: { id: string; name: string }[] }>(`/api/v1/public/home?locale=${locale}`)
-      .then((home) => setPlaces(home.neighborhoods))
-      .catch(() => setPlaces([]));
+    api<{ items: { id: string; texts?: { locale: string; name: string }[] }[]; total: number }>("/api/v1/geo/neighborhoods?page_size=100")
+      .then((body) => {
+        setPlaces(
+          body.items.map((item) => ({
+            id: item.id,
+            name: item.texts?.find((text) => text.locale === locale)?.name || item.texts?.[0]?.name || item.id,
+          })),
+        );
+        setPlacesNote(body.total > body.items.length ? text.placesCap : "");
+      })
+      .catch(() => {
+        setPlaces([]);
+        setPlacesNote(text.placesError);
+      });
     api<{ nodes: { id: string; kind: string; name_ar: string; name_en: string; status: string }[] }>("/api/v1/org/structure")
       .then((structure) => setBranches(structure.nodes.filter((node) => node.kind === "branch" && node.status === "active")))
       .catch(() => setBranches([]));
@@ -199,7 +236,14 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
       <form className="grid gap-3 rounded-lg border border-line bg-card p-4 sm:grid-cols-2" onSubmit={submit}>
         <Label>
           {text.code}
-          <select className="rounded-md border border-line bg-paper px-2 py-2" value={code} onChange={(event) => setCode(event.target.value as (typeof codes)[number])}>
+          <select
+            className="rounded-md border border-line bg-paper px-2 py-2"
+            value={code}
+            onChange={(event) => {
+              setCode(event.target.value as (typeof codes)[number]);
+              setStatus("");
+            }}
+          >
             {codes.map((item) => (
               <option key={item} value={item}>
                 {text.names[item]}
@@ -235,17 +279,16 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
               </option>
             ))}
           </select>
+          {placesNote ? <span className="text-sm text-ink/80">{placesNote}</span> : null}
         </Label>
         <Label>
           {text.status}
           <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="">{text.any}</option>
-            <option value="new">{locale === "en" ? "New" : "جديد"}</option>
-            <option value="confirmed">{locale === "en" ? "Confirmed" : "مؤكد"}</option>
-            <option value="completed">{locale === "en" ? "Completed" : "مكتمل"}</option>
-            <option value="cancelled">{locale === "en" ? "Cancelled" : "ملغى"}</option>
-            <option value="published">{locale === "en" ? "Published" : "منشور"}</option>
-            <option value="draft">{locale === "en" ? "Draft" : "مسودة"}</option>
+            {statusChoices(code).map((item) => (
+              <option key={`${code}-${item.value || "any"}`} value={item.value}>
+                {locale === "en" ? item.en : item.ar}
+              </option>
+            ))}
           </select>
         </Label>
         <Label>
@@ -270,7 +313,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
             {text.month}
           </Button>
         </div>
-        <p className="text-sm text-muted sm:col-span-2">{text.basis}</p>
+        <p className="text-sm text-muted sm:col-span-2">{text.basis[code]}</p>
         <Button type="submit">{text.run}</Button>
       </form>
       {loading ? <p className="text-sm">{locale === "en" ? "Loading…" : "جارٍ التحميل…"}</p> : null}
@@ -288,7 +331,8 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
       {report ? (
         <article className="grid gap-3 rounded-lg border border-line bg-card p-4">
           <h2 className="text-lg font-semibold">{text.names[report.code as (typeof codes)[number]] ?? report.code}</h2>
-          <p>{locale === "en" ? report.definition_en : report.definition_ar}</p>
+          <p>{readable(locale === "en" ? report.definition_en : report.definition_ar, locale)}</p>
+          <p className="text-sm text-ink/80">{text.basis[report.code as (typeof codes)[number]] ?? text.basis[code]}</p>
           <dl className="grid gap-2 text-sm">
             <div>
               <dt className="text-muted">{text.generated}</dt>
@@ -303,12 +347,12 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
             <details>
               <summary>{text.method}</summary>
               <p>
-                {text.source}: {report.source}
+                {text.source}: {readable(report.source, locale)}
               </p>
             </details>
             <div>
               <dt className="text-ink/70">{text.exclusions}</dt>
-              <dd>{locale === "en" ? report.exclusions_en : report.exclusions_ar}</dd>
+              <dd>{readable(locale === "en" ? report.exclusions_en : report.exclusions_ar, locale)}</dd>
             </div>
             <div>
               <dt className="text-ink/70">{text.freshness}</dt>
@@ -316,7 +360,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
             </div>
             <div>
               <dt className="text-ink/70">{text.reconciliation}</dt>
-              <dd>{report.reconciliation}</dd>
+              <dd>{readable(report.reconciliation, locale)}</dd>
             </div>
           </dl>
           <p className="text-sm font-semibold">{text.commission}</p>
@@ -325,7 +369,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
               <li key={item.code} className="rounded-md border border-line p-3">
                 <p className="font-semibold">{measureName[item.code] ?? (locale === "en" ? item.definition_en : item.definition_ar)}</p>
                 <p className="text-lg">{formatMeasure(item, locale, text.undefined)}</p>
-                <p className="text-sm text-ink/80">{locale === "en" ? item.definition_en : item.definition_ar}</p>
+                <p className="text-sm text-ink/80">{readable(locale === "en" ? item.definition_en : item.definition_ar, locale)}</p>
               </li>
             ))}
           </ul>
@@ -340,6 +384,77 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
       {body}
     </PublicFrame>
   );
+}
+
+function statusChoices(code: (typeof codes)[number]) {
+  if (code === "visits") {
+    return [
+      { value: "", ar: "الكل", en: "Any" },
+      { value: "new", ar: "جديد", en: "New" },
+      { value: "awaiting_broker", ar: "بانتظار الوسيط", en: "Awaiting the broker" },
+      { value: "awaiting_owner", ar: "بانتظار المالك", en: "Awaiting the owner" },
+      { value: "confirmed", ar: "مؤكد", en: "Confirmed" },
+      { value: "completed", ar: "مكتمل", en: "Completed" },
+      { value: "cancelled", ar: "ملغى", en: "Cancelled" },
+      { value: "no_show", ar: "لم يحضر", en: "No show" },
+    ];
+  }
+  if (code === "deals") {
+    return [
+      { value: "", ar: "الكل", en: "Any" },
+      { value: "draft", ar: "مسودة", en: "Draft" },
+      { value: "qualified", ar: "مؤهل", en: "Qualified" },
+      { value: "negotiation", ar: "تفاوض", en: "Negotiation" },
+      { value: "awaiting_documents", ar: "بانتظار المستندات", en: "Awaiting documents" },
+      { value: "preliminary_agreement", ar: "اتفاق مبدئي", en: "Preliminary agreement" },
+      { value: "awaiting_external", ar: "بانتظار جهة خارجية", en: "Awaiting an external party" },
+      { value: "closed_success", ar: "أُغلق بنجاح", en: "Closed successfully" },
+      { value: "closed_unsuccessful", ar: "أُغلق دون إتمام", en: "Closed without completion" },
+      { value: "cancelled", ar: "ملغى", en: "Cancelled" },
+    ];
+  }
+  if (code === "occupancy") return [{ value: "", ar: "المؤكد فقط", en: "Confirmed only" }];
+  if (code === "bookings") {
+    return [
+      { value: "", ar: "المؤكد (الافتراضي)", en: "Confirmed (default)" },
+      { value: "confirmed", ar: "مؤكد", en: "Confirmed" },
+      { value: "held", ar: "تثبيت", en: "Hold" },
+      { value: "expired", ar: "منتهٍ", en: "Expired" },
+    ];
+  }
+  return [
+    { value: "", ar: "الكل", en: "Any" },
+    { value: "pending_review", ar: "قيد المراجعة", en: "Pending review" },
+    { value: "mismatch_review", ar: "اختلاف المبلغ", en: "Amount mismatch" },
+    { value: "collected", ar: "محصّل", en: "Collected" },
+  ];
+}
+
+function readable(text: string, locale: Locale) {
+  const ar = locale !== "en";
+  const pairs: [string, string][] = [
+    [
+      "finance.attempts joined to stays.bookings.arrival; collected_minor from finance.ledger_lines provider_clearing debit",
+      ar ? "محاولات الدفع لحجوزات الوصول في الفترة، والمحصّل من قيد حساب التحصيل" : "Payment attempts for arrivals in the period, and collected cash from the collection account",
+    ],
+    ["stays.bookings arrival/departure where status is confirmed", ar ? "وصول ومغادرة الحجوزات المؤكدة" : "Arrival and departure of confirmed bookings"],
+    ["visits.appointments.starts_at", ar ? "موعد بداية الزيارة" : "Visit start"],
+    ["deals.deals.created_at", ar ? "وقت إنشاء الصفقة" : "Deal creation time"],
+    ["stays.bookings.arrival", ar ? "تاريخ وصول الحجز" : "Booking arrival date"],
+    ["provider_clearing", ar ? "حساب التحصيل" : "the collection account"],
+    ["pending_review", ar ? "قيد المراجعة" : "pending review"],
+    ["mismatch_review", ar ? "اختلاف المبلغ" : "amount mismatch"],
+    ["collected_minor", ar ? "المحصّل" : "collected amount"],
+    ["stay_due_minor", ar ? "مستحق الإقامة" : "stay amount due"],
+    ["amount_minor", ar ? "مبلغ الاتفاق" : "agreement amount"],
+    ["is_test", ar ? "صفقة اختبار" : "test deal"],
+    ["not_applicable", ar ? "لا تنطبق" : "Not applicable"],
+    ["not_run", ar ? "لم تُشغَّل" : "Not run"],
+    ["collected", ar ? "محصّل" : "collected"],
+    ["ADR أو RevPAR", ar ? "مؤشرات سعر الغرفة" : "ADR أو RevPAR"],
+    ["ADR or RevPAR", ar ? "ADR or RevPAR" : "room-rate indicators"],
+  ];
+  return pairs.reduce((value, [from, to]) => value.split(from).join(to), text);
 }
 
 function formatMeasure(item: Measure, locale: Locale, undefinedLabel: string) {

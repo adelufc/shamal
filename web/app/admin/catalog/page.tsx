@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Failure, api, useSession } from "@/components/admin-shell";
+import { ApiError, Failure, api, useSession } from "@/components/admin-shell";
+import { propertyTypeName } from "@/lib/property-types";
 import { Button } from "@/components/ui/button";
 import { Input, Label, TextArea } from "@/components/ui/input";
 
@@ -9,6 +10,14 @@ type Neighborhood = { id: string; status: string; texts: { locale: string; name:
 type PropertyType = { code: string; name_ar: string; requires_rooms: boolean };
 type Listing = { id: string; status: string; version: number; issues: string[] };
 type Staff = { id: string; display_name: string; email: string };
+type PropertyRow = {
+  id: string;
+  neighborhood_id: string;
+  address_ar: string;
+  address_en: string;
+  type_code: string;
+  area_sqm: number;
+};
 
 const placeStatus: Record<string, string> = { draft: "مسودة", published: "منشور", in_review: "قيد المراجعة", suspended: "موقوف" };
 
@@ -41,29 +50,62 @@ export default function CatalogPage() {
   const [broker, setBroker] = useState("");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [step, setStep] = useState(1);
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
+  const [propertyTotal, setPropertyTotal] = useState(0);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [propertyState, setPropertyState] = useState<"loading" | "ready" | "error" | "forbidden">("loading");
+  const [propertyError, setPropertyError] = useState<unknown>(null);
+  const [openProperty, setOpenProperty] = useState("");
 
   const can = (action: string) => (me?.actions.catalog ?? []).includes(action);
 
   useEffect(() => {
     if (!me) return;
+    if (!(me.actions.catalog ?? []).includes("view")) {
+      setPropertyState("forbidden");
+      return;
+    }
     let stop = false;
-    Promise.all([
-      api<{ items: Neighborhood[] }>("/api/v1/geo/neighborhoods?page_size=100"),
-      api<{ items: PropertyType[] }>("/api/v1/catalog/property-types"),
-      api<{ staff: Staff[] }>("/api/v1/org/structure"),
-    ])
-      .then(([places, kinds, structure]) => {
+    setProperties([]);
+    setPropertyState("loading");
+    api<{ items: PropertyRow[]; total: number }>(`/api/v1/catalog/properties?page_size=25&page=${propertyPage}`)
+      .then((body) => {
         if (stop) return;
-        setNeighborhoods(places.items);
-        setTypes(kinds.items);
-        setStaff(structure.staff);
-        setState("ready");
+        setProperties(body.items);
+        setPropertyTotal(body.total);
+        setPropertyState("ready");
       })
       .catch((caught) => {
         if (stop) return;
-        setError(caught);
-        setState("error");
+        setProperties([]);
+        setPropertyError(caught);
+        setPropertyState(caught instanceof ApiError && caught.status === 403 ? "forbidden" : "error");
       });
+    return () => {
+      stop = true;
+    };
+  }, [me, propertyPage]);
+
+  useEffect(() => {
+    if (!me) return;
+    let stop = false;
+    Promise.allSettled([
+      api<{ items: Neighborhood[] }>("/api/v1/geo/neighborhoods?page_size=100"),
+      api<{ items: PropertyType[] }>("/api/v1/catalog/property-types"),
+      api<{ staff: Staff[] }>("/api/v1/org/structure"),
+    ]).then((results) => {
+      if (stop) return;
+      const [places, kinds, structure] = results;
+      if (places.status === "rejected" || kinds.status === "rejected") {
+        setError(places.status === "rejected" ? places.reason : kinds.reason);
+        setState("error");
+        return;
+      }
+      setNeighborhoods(places.value.items);
+      setTypes(kinds.value.items);
+      setStaff(structure.status === "fulfilled" ? structure.value.staff : []);
+      setState("ready");
+    });
     return () => {
       stop = true;
     };
@@ -141,12 +183,20 @@ export default function CatalogPage() {
   }
 
   const selected = types.find((item) => item.code === typeCode);
+  const createAllowed = can("create");
+  const placeName = (id: string) => neighborhoods.find((item) => item.id === id)?.texts?.find((text) => text.locale === "ar")?.name ?? "";
 
   return (
     <section className="grid gap-4">
-      <h1 className="text-2xl font-semibold">عقار ووحدة وإعلان</h1>
-      <p className="text-sm text-muted">العقار ثم الوحدة ثم الإعلان. لا يُحفظ سجل قبل الضغط الأخير. لا يُنشر إعلان في حي غير مؤهل.</p>
-      <p className="text-sm">الخطوة {step} من 3</p>
+      <h1 className="text-2xl font-semibold">{createAllowed ? "عقار ووحدة وإعلان" : "العقارات"}</h1>
+      {createAllowed ? (
+        <>
+          <p className="text-sm text-muted">العقار ثم الوحدة ثم الإعلان. لا يُحفظ سجل قبل الضغط الأخير. لا يُنشر إعلان في حي غير مؤهل.</p>
+          <p className="text-sm">الخطوة {step} من 3</p>
+        </>
+      ) : (
+        <p className="text-sm text-muted">عرض العقارات المتاحة لصلاحية العرض. إنشاء عقار جديد غير متاح لهذا الحساب.</p>
+      )}
       {state === "loading" ? <p className="text-sm">جارٍ تحميل الأنواع والأحياء…</p> : null}
       {state === "error" ? <Failure error={error} /> : null}
       {state === "ready" && neighborhoods.length === 0 ? <p className="text-sm">لا توجد أحياء لربط العقار بها.</p> : null}
@@ -169,7 +219,7 @@ export default function CatalogPage() {
               <option value="">اختر النوع</option>
               {types.map((item) => (
                 <option key={item.code} value={item.code}>
-                  {item.name_ar}
+                  {propertyTypeName("ar", item.code, item.name_ar)}
                 </option>
               ))}
             </select>
@@ -297,6 +347,43 @@ export default function CatalogPage() {
         </form>
       ) : null}
       {error && state !== "error" ? <Failure error={error} /> : null}
+      {propertyState === "loading" ? <p className="text-sm">جارٍ تحميل العقارات…</p> : null}
+      {propertyState === "forbidden" ? <p className="text-sm">لا توجد صلاحية لعرض العقارات.</p> : null}
+      {propertyState === "error" ? <Failure error={propertyError} /> : null}
+      {propertyState === "ready" && propertyTotal === 0 ? <p className="text-sm">لا توجد عقارات.</p> : null}
+      {propertyState === "ready" && propertyTotal > 0 ? (
+        <div className="grid gap-3">
+          <h2 className="text-lg font-semibold">قائمة العقارات</h2>
+          <p className="text-sm">{`عرض ${(propertyPage - 1) * 25 + 1}–${Math.min(propertyPage * 25, propertyTotal)} من ${propertyTotal}`}</p>
+          {properties.map((item) => (
+            <article key={item.id} data-property-id={item.id} className="grid gap-2 rounded-lg border border-line bg-card p-4 text-sm">
+              <h3 className="font-semibold">{item.address_ar || "بدون عنوان عربي"}</h3>
+              <p>
+                {propertyTypeName("ar", item.type_code)}
+                {placeName(item.neighborhood_id) ? ` · ${placeName(item.neighborhood_id)}` : ""}
+                {` · ${item.area_sqm} م²`}
+              </p>
+              <Button type="button" variant="ghost" onClick={() => setOpenProperty(openProperty === item.id ? "" : item.id)}>
+                {openProperty === item.id ? "إخفاء التفاصيل" : "التفاصيل"}
+              </Button>
+              {openProperty === item.id ? (
+                <div className="grid gap-1">
+                  <p>{item.address_en ? item.address_en : "بدون عنوان إنجليزي"}</p>
+                  <p>{placeName(item.neighborhood_id) || "اسم الحي غير متاح في هذه القائمة"}</p>
+                </div>
+              ) : null}
+            </article>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="ghost" disabled={propertyPage <= 1} onClick={() => setPropertyPage(propertyPage - 1)}>
+              السابق
+            </Button>
+            <Button type="button" variant="ghost" disabled={propertyPage * 25 >= propertyTotal} onClick={() => setPropertyPage(propertyPage + 1)}>
+              التالي
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {listing ? (
         <div className="rounded-lg border border-line bg-card p-4 text-sm">
           <p>حالة الإعلان: {listing.status}</p>
