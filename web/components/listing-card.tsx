@@ -50,7 +50,7 @@ export function ListingCard({
         {facts.length > 0 ? <p className="text-sm text-muted">{facts.join(" · ")}</p> : null}
         {description ? <p className="text-sm text-muted">{description}</p> : null}
         <p className="text-sm text-muted">{copy.approximate}</p>
-        {verified ? <p className="text-sm text-[#256344]">{copy.verifiedOwner}</p> : null}
+        {verified ? <p className="text-sm text-mint">{copy.verifiedOwner}</p> : null}
         <div className="flex flex-wrap gap-3 text-sm">
           <a className="underline" href={href}>
             {copy.details}

@@ -161,14 +161,14 @@ export default function NeighborhoodsPage() {
       {state === "loading" ? <p className="text-sm">جارٍ تحميل الأحياء…</p> : null}
       {state === "error" && !(error instanceof ApiError) ? <p className="text-sm text-warn">تعذر تحميل الأحياء.</p> : null}
       {state === "ready" && items.length === 0 ? <p className="rounded-lg border border-dashed border-line p-4 text-sm">لا توجد أحياء.</p> : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 [&_input]:border-action [&_select]:border-action">
         <label className="grid gap-2 text-sm">
           بحث بالاسم
           <Input value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <label className="grid gap-2 text-sm">
           الحالة
-          <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <select className="min-h-11 rounded-lg border border-action bg-card px-3" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="">الكل</option>
             {Object.entries(statuses).map(([value, label]) => (
               <option key={value} value={value}>

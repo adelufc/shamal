@@ -231,7 +231,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         )}
       </div>
       <p className="text-sm text-ink/80">{text.lead}</p>
-      <form className="grid gap-3 rounded-lg border border-line bg-card p-4 sm:grid-cols-2" onSubmit={submit}>
+      <form className="grid gap-3 rounded-lg border border-line bg-card p-4 sm:grid-cols-2 [&_input]:border-action [&_select]:border-action" onSubmit={submit}>
         <Label>
           {text.code}
           <select
@@ -281,7 +281,7 @@ export function ReportScreen({ locale, framed = false }: { locale: Locale; frame
         </Label>
         <Label>
           {text.status}
-          <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select className="min-h-11 rounded-lg border border-action bg-card px-3" value={status} onChange={(event) => setStatus(event.target.value)}>
             {statusChoices(code).map((item) => (
               <option key={`${code}-${item.value || "any"}`} value={item.value}>
                 {locale === "en" ? item.en : item.ar}

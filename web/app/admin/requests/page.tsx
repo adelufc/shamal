@@ -137,7 +137,7 @@ export default function RequestsPage() {
       <h1 className="text-2xl font-semibold">طلبات العملاء</h1>
       <p className="text-sm text-muted">الطلب بلا مسؤول يبقى في صف الإدارة. فتح التفاصيل لا يغيّر المرحلة. غير المؤهل والمغلق يحتاجان سبباً.</p>
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="flex flex-wrap items-end gap-2 [&_input]:border-action [&_input]:accent-action"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           setAppliedQ(q);

@@ -157,7 +157,7 @@ export default function AdminMessagesPage() {
         <p>الرد الآلي والرد الجاهز لا يُحسبان أول رد بشري. الملاحظة الداخلية لا تصل إلى العميل. الحذف الإشرافي يخفي النص عن العميل ويبقي نسخة للتدقيق. لا مزود رسائل خارجي، لذلك حالة التسليم تبقى غير مرسلة.</p>
       </details>
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="flex flex-wrap items-end gap-2 [&_input]:border-action"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           setPage(1);

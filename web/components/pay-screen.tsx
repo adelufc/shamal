@@ -407,13 +407,13 @@ export function PayScreen({ locale }: { locale: Locale }) {
               {attempts.map((item) => (
                 <article key={item.id} className="grid gap-1 rounded-lg border border-line bg-card p-3 text-sm">
                   <p>
-                    {text.methods[item.method] ?? item.method} · {statusName(item.status)} · {label(item)}
+                    {text.methods[item.method] ?? item.method} · {item.status === "collected" || item.status === "successful" ? <span className="text-mint">{statusName(item.status)}</span> : statusName(item.status)} · {label(item)}
                   </p>
                   <p>
                     {money(item.amount_minor, locale)} · {item.provider} · {text.openDecision}
                   </p>
                   <p>
-                    {item.success ? text.collected : text.notCollected} · {text.decisive}: {item.decisive ? text.yes : text.no}
+                    {item.success ? <span className="text-mint">{text.collected}</span> : text.notCollected} · {text.decisive}: {item.decisive ? text.yes : text.no}
                   </p>
                   {item.method === "bank_transfer" ? (
                     <form className="mt-2 grid gap-2" onSubmit={(event) => void saveProof(event, item.id)}>
@@ -481,7 +481,7 @@ export function PayScreen({ locale }: { locale: Locale }) {
               {refunds.map((item) => (
                 <article key={item.id} className="grid gap-1 text-sm">
                   <p>
-                    {money(item.amount_minor, locale)} · {statusName(item.status)} · {text.successFlag}: {item.success ? text.yes : text.no}
+                    {money(item.amount_minor, locale)} · {item.status === "successful" || item.status === "collected" ? <span className="text-mint">{statusName(item.status)}</span> : statusName(item.status)} · {text.successFlag}: {item.success ? <span className="text-mint">{text.yes}</span> : text.no}
                   </p>
                   <p>{item.reason}</p>
                   {item.status === "under_review" ? (

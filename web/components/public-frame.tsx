@@ -46,7 +46,7 @@ export function PublicFrame({
     <div dir={locale === "en" ? "ltr" : "rtl"} lang={locale} className="min-h-screen overflow-x-hidden">
       <DocumentLocale locale={locale} />
       <p className="bg-[#FFF6DE] px-4 py-2 text-center text-sm text-[#7B560D]">{copy.testEnv}</p>
-      <header className="border-b border-line bg-card">
+      <header data-chrome="navy" className="border-b border-white/15 bg-ink text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <a href={homePath(locale)} className="text-lg font-semibold">
             {copy.brand}
@@ -54,7 +54,7 @@ export function PublicFrame({
           <button
             ref={menuButton}
             type="button"
-            className="inline-flex min-h-11 items-center rounded-lg border border-[#7B877D] px-3 md:hidden"
+            className="inline-flex min-h-11 items-center rounded-lg border border-white/40 px-3 text-white md:hidden"
             aria-expanded={open}
             onClick={() => toggle(!open)}
           >
@@ -69,7 +69,7 @@ export function PublicFrame({
             <a href={languageHref(locale, path)}>{copy.language}</a>
           </nav>
         </div>
-        <nav ref={menu} className={`${open ? "grid" : "hidden"} gap-1 border-t border-line px-4 py-3 text-sm md:hidden`}>
+        <nav ref={menu} className={`${open ? "grid" : "hidden"} gap-1 border-t border-white/15 px-4 py-3 text-sm md:hidden`}>
           {links.map((item) => (
             <a key={item.href + item.label} className="inline-flex min-h-11 items-center" href={item.href}>
               {item.label}

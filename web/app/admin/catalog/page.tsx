@@ -297,7 +297,7 @@ export default function CatalogPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <Label>
               المالك
-              <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={owner} onChange={(event) => setOwner(event.target.value)}>
+              <select className="min-h-11 rounded-lg border border-line bg-card px-3" value={owner} onChange={(event) => setOwner(event.target.value)}>
                 <option value="">بدون مالك محدد</option>
                 {staff.map((person) => (
                   <option key={person.id} value={person.id}>
@@ -308,7 +308,7 @@ export default function CatalogPage() {
             </Label>
             <Label>
               الوسيط
-              <select className="min-h-11 rounded-lg border border-[#7B877D] bg-card px-3" value={broker} onChange={(event) => setBroker(event.target.value)}>
+              <select className="min-h-11 rounded-lg border border-line bg-card px-3" value={broker} onChange={(event) => setBroker(event.target.value)}>
                 <option value="">بدون وسيط محدد</option>
                 {staff.map((person) => (
                   <option key={person.id} value={person.id}>

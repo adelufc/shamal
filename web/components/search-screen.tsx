@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
 import { money } from "@/lib/chrome";
+import { propertyTypeName } from "@/lib/property-types";
 import type { Locale } from "@/lib/types";
 
 type Place = {
@@ -236,6 +237,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
     search.set("locale", locale);
     setState("loading");
     api<SearchPayload>(`/api/v1/public/search?${search.toString()}`)
+      .then((body) => attachMarkerTypes(body, search))
       .then((body) => {
         if (stop) return;
         setPayload(body);
@@ -303,7 +305,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
       <section className="grid gap-4">
         <h1 className="text-2xl font-semibold">{text.title}</h1>
         <p className="text-sm text-ink/80">{text.lead}</p>
-        <form className="grid gap-3 rounded-lg border border-line bg-card p-4 md:grid-cols-2" onSubmit={submit}>
+        <form className="grid gap-3 rounded-lg border border-line bg-card p-4 md:grid-cols-2 [&_input]:border-action [&_input]:accent-action [&_select]:border-action" onSubmit={submit}>
           <Label>
             {text.query}
             <Input value={q} onChange={(event) => setQ(event.target.value)} />
@@ -409,7 +411,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
                 <p>{text.empty}</p>
                 <p>{text.applied}</p>
                 <FilterSummary locale={locale} query={applied} />
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-3 text-action">
                   {applied?.price_min_minor || applied?.price_max_minor ? (
                     <button className="underline" onClick={() => without(["price_min_minor", "price_max_minor"])}>
                       {text.widenPrice}
@@ -464,7 +466,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
                         title={item.title}
                         description={item.description}
                         neighborhood={place?.name}
-                        typeName={item.type_code}
+                        typeName={propertyTypeName(locale, item.type_code)}
                         area={item.area_sqm}
                         rooms={item.rooms}
                         priceMinor={item.price_minor}
@@ -496,6 +498,7 @@ export function SearchScreen({ locale }: { locale: Locale }) {
                 onClearArea={() => without(["in_area", "west", "south", "east", "north"])}
                 onSearchArea={(box) => {
                   const next = new URLSearchParams(params.toString());
+                  next.delete("page");
                   next.set("in_area", "1");
                   next.set("west", box.west.toFixed(5));
                   next.set("south", box.south.toFixed(5));
@@ -553,7 +556,7 @@ function ListingMap({
       return null;
     }
   }, [places]);
-  const dots = useMemo(() => mapDots(markers, clusters, forceClusters, zoom), [markers, clusters, forceClusters, zoom]);
+  const dots = useMemo(() => mapDots(markers, clusters, forceClusters, zoom, locale), [markers, clusters, forceClusters, zoom, locale]);
   if (!drawn) return <p className="rounded-lg border border-line bg-card p-4 text-sm">{text.mapUnavailable}</p>;
   const view = zoomBox(drawn.bounds, zoom);
   const clustered = forceClusters || zoom === 0;
@@ -561,21 +564,32 @@ function ListingMap({
     <section className="grid gap-2">
       <svg viewBox="0 0 640 420" role="img" className="h-80 w-full rounded-lg border border-line bg-olive-soft" aria-label={text.title}>
         {drawn.rings.map((ring, index) => (
-          <polygon key={index} points={ring.map(([lon, lat]) => point(lon, lat, view)).join(" ")} fill="#ffffff" stroke="#304f3c" strokeWidth="1" />
+          <polygon key={index} points={ring.map(([lon, lat]) => point(lon, lat, view)).join(" ")} fill="#ffffff" stroke="#0f172a" strokeWidth="1" />
         ))}
         {dots.map((item) => {
           const [x, y] = point(item.lon, item.lat, view).split(",");
+          const label = item.label ? (
+            <text x={Number(x) + 18} y={y} dy="4" fill="#0f172a" fontSize="12">
+              {item.label}
+            </text>
+          ) : null;
           if (clustered) {
             return (
               <g key={item.key}>
-                <circle cx={x} cy={y} r="14" fill="#304f3c" />
+                <circle cx={x} cy={y} r="14" fill="#0f172a" />
                 <text x={x} y={y} textAnchor="middle" dy="4" fill="#ffffff" fontSize="12">
                   {item.count}
                 </text>
+                {label}
               </g>
             );
           }
-          return <circle key={item.key} cx={x} cy={y} r="5" fill="#8b744d" />;
+          return (
+            <g key={item.key}>
+              <circle cx={x} cy={y} r="5" fill="#0f172a" />
+              {label}
+            </g>
+          );
         })}
       </svg>
       <div className="flex flex-wrap gap-2">
@@ -599,27 +613,56 @@ function ListingMap({
   );
 }
 
-function mapDots(markers: Marker[], clusters: Cluster[], forceClusters: boolean, zoom: number) {
+async function attachMarkerTypes(body: SearchPayload, search: URLSearchParams) {
+  const types = new Map(body.listings.map((item) => [item.id, item.type_code]));
+  const missing = body.markers.some((item) => !item.type_code && !types.has(item.id));
+  if (missing && body.total > body.listings.length) {
+    const pages = Math.min(Math.ceil(body.total / 100), 5);
+    for (let page = 1; page <= pages; page += 1) {
+      const wide = new URLSearchParams(search);
+      wide.set("page", String(page));
+      wide.set("page_size", "100");
+      try {
+        const all = await api<SearchPayload>(`/api/v1/public/search?${wide.toString()}`);
+        for (const item of all.listings) types.set(item.id, item.type_code);
+      } catch {
+        break;
+      }
+    }
+  }
+  return {
+    ...body,
+    markers: body.markers.map((item) => ({ ...item, type_code: item.type_code || types.get(item.id) || "" })),
+  };
+}
+
+function mapDots(markers: Marker[], clusters: Cluster[], forceClusters: boolean, zoom: number, locale: Locale) {
+  const labelFor = (codes: string[]) => {
+    const unique = [...new Set(codes.filter(Boolean))];
+    return unique.length === 1 ? propertyTypeName(locale, unique[0]) : "";
+  };
   if (forceClusters) {
     return clusters
       .filter((item) => Number.isFinite(item.lon) && Number.isFinite(item.lat))
-      .map((item) => ({ key: item.neighborhood_id, lon: item.lon as number, lat: item.lat as number, count: item.count }));
+      .map((item) => ({ key: item.neighborhood_id, lon: item.lon as number, lat: item.lat as number, count: item.count, label: "" }));
   }
   if (zoom === 0) {
-    const groups = new Map<string, { key: string; lon: number; lat: number; count: number }>();
+    const groups = new Map<string, { key: string; lon: number; lat: number; count: number; codes: string[] }>();
     for (const marker of markers) {
       const current = groups.get(marker.neighborhood_id) ?? {
         key: marker.neighborhood_id,
         lon: marker.lon,
         lat: marker.lat,
         count: 0,
+        codes: [],
       };
       current.count += 1;
+      current.codes.push(marker.type_code);
       groups.set(marker.neighborhood_id, current);
     }
-    return [...groups.values()];
+    return [...groups.values()].map((item) => ({ key: item.key, lon: item.lon, lat: item.lat, count: item.count, label: labelFor(item.codes) }));
   }
-  return markers.map((item) => ({ key: item.id, lon: item.lon, lat: item.lat, count: 1 }));
+  return markers.map((item) => ({ key: item.id, lon: item.lon, lat: item.lat, count: 1, label: propertyTypeName(locale, item.type_code) }));
 }
 
 function shapes(places: Place[]) {

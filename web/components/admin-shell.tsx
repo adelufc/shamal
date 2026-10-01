@@ -186,7 +186,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                     className="w-32 rounded-md border border-line bg-card px-2 py-1"
                     aria-label="رمز من 6 أرقام"
                   />
-                  <button className="rounded-md bg-olive px-3 py-1 text-paper">تأكيد</button>
+                  <button className="inline-flex min-h-11 items-center rounded-md bg-action px-3 text-white">تأكيد</button>
                 </>
               )}
               {notice ? <span>{notice}</span> : null}
@@ -226,19 +226,19 @@ function AdminFrame({
   return (
     <div className="min-h-screen overflow-x-hidden lg:grid lg:grid-cols-[16rem_1fr]">
       <p className="bg-[#FFF6DE] px-4 py-2 text-center text-sm text-[#7B560D] lg:col-span-2">بيئة اختبار</p>
-      <aside className="border-b border-line bg-card lg:border-b-0 lg:border-e">
+      <aside data-chrome="navy" className="border-b border-white/15 bg-ink text-white lg:border-b-0 lg:border-e">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div>
             <a href="/admin" className="text-lg font-semibold">
               شمال العقاري
             </a>
-            <p className="text-sm text-muted">{name}</p>
+            <p className="text-sm text-white/80">{name}</p>
             <p className="text-sm">{current?.[1] ?? "لوحة العمل"}</p>
           </div>
           <button
             ref={button}
             type="button"
-            className="inline-flex min-h-11 items-center rounded-lg border border-[#7B877D] px-3 lg:hidden"
+            className="inline-flex min-h-11 items-center rounded-lg border border-white/40 px-3 text-white lg:hidden"
             aria-expanded={open}
             onClick={() => toggle(!open)}
           >
@@ -252,7 +252,7 @@ function AdminFrame({
               {group.links.map(([href, label]) => {
                 const active = path === href || (href !== "/admin" && path.startsWith(href));
                 return (
-                  <a key={href} href={href} className={`inline-flex min-h-11 items-center rounded-lg px-2 ${active ? "bg-olive-soft font-semibold" : ""}`} aria-current={active ? "page" : undefined}>
+                  <a key={href} href={href} className={`inline-flex min-h-11 items-center rounded-lg px-2 ${active ? "bg-white/10 font-semibold" : ""}`} aria-current={active ? "page" : undefined}>
                     {label}
                   </a>
                 );

@@ -156,7 +156,7 @@ export default function AdminDisputesPage() {
           الحالات: مفتوحة، مصنفة، قيد المعالجة، بانتظار العميل، بانتظار المؤجر، مصعدة، حل مقترح، محلولة، مغلقة، أعيد فتحها. الانتقال غير المدرج يُرفض. تعويض معتمد ينشئ طلب استرداد بحالة مراجعة ولا يغيّر الدفتر. القضية لا تُغلق مالياً من هنا. الإشعار يُحفظ داخل القضية ولا يُرسل عبر مزود. لا تُدخل عمولة أو ضريبة أو رسم إلغاء. اسم العميل ليس في قائمة القضايا، فيظهر وصف القضية ومرجع الحجز.
         </p>
       </details>
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2 [&_input]:border-action [&_select]:border-action">
         <label className="grid gap-1 text-sm">
           بحث بالمرجع أو الوصف
           <Input value={q} onChange={(event) => { setQ(event.target.value); setPage(1); }} />

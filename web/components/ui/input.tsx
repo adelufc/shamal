@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 export const controlClass =
-  "min-h-11 w-full rounded-lg border border-[#7B877D] bg-card px-3 text-base text-ink outline-none";
+  "min-h-11 w-full rounded-lg border border-line bg-card px-3 text-base text-ink outline-none";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${controlClass} ${props.className ?? ""}`} {...props} />;
