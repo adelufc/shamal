@@ -1,5 +1,6 @@
 import { ListingCard } from "@/components/listing-card";
 import { chrome, homePath } from "@/lib/chrome";
+import { propertyTypeName } from "@/lib/property-types";
 import { type NeighborhoodResult } from "@/lib/public";
 
 export function NeighborhoodBody({ locale, result }: { locale: "ar" | "en"; result: NeighborhoodResult }) {
@@ -67,7 +68,7 @@ export function NeighborhoodBody({ locale, result }: { locale: "ar" | "en"; resu
                   title={item.texts?.[0]?.title ?? ""}
                   description={item.texts?.[0]?.description}
                   neighborhood={text?.name}
-                  typeName={item.type_code}
+                  typeName={propertyTypeName(locale, item.type_code)}
                   area={item.area_sqm}
                   rooms={item.rooms}
                   priceMinor={item.price_minor}

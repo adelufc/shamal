@@ -1,5 +1,6 @@
 import { ListingCard } from "@/components/listing-card";
 import { chrome, contentPath } from "@/lib/chrome";
+import { propertyTypeName } from "@/lib/property-types";
 import type { HomePayload, Locale, PublicContent } from "@/lib/types";
 
 export function HomeView({
@@ -66,7 +67,7 @@ export function HomeView({
                     title={text?.title ?? ""}
                     description={text?.description}
                     neighborhood={place?.name}
-                    typeName={item.type_code}
+                    typeName={propertyTypeName(locale, item.type_code)}
                     area={item.area_sqm}
                     rooms={item.rooms}
                     priceMinor={item.price_minor}
